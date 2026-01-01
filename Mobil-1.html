@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FarmCraft: Mobile Edition</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#7cb342">
+    <style>
+        :root {
+            --bg-grass: #7cb342;
+            --bg-road: #263238;
+            --bg-sidewalk: #eceff1;
+            --bg-concrete: #90a4ae;
+            --ui-bg: #222;
+            --highlight: #ffb74d;
+        }
+
+        * { box-sizing: border-box; touch-action: none; /* Zákaz zoomování dotykem */ }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; margin: 0; overflow: hidden; color: white; user-select: none;
+        }
+
+        /* --- HUD --- */
+        .hud-panel {
+            position: absolute; top: 10px;
+            background: linear-gradient(180deg, #2d2d2d, #1a1a1a);
+            padding: 8px 15px; border-radius: 12px; border: 2px solid #555;
+            display: flex; gap: 20px; width: 95%; max-width: 800px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.6); z-index: 100;
+            justify-content: space-between; align-items: center;
+            font-size: 0.9em;
+        }
+        .stat-box { display: flex; align-items: center; gap: 8px; }
+        .basket-bar-bg { width: 80px; height: 8px; background: #333; border: 1px solid #555; border-radius: 4px; overflow: hidden; }
+        .basket-bar-fill { height: 100%; background: linear-gradient(90deg, #ff9800, #ff5722); width: 0%; transition: width 0.3s; }
+
+        /* --- XP BAR --- */
+        .level-badge { background: #673ab7; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; border: 2px solid #9575cd; box-shadow: 0 0 5px black; z-index: 2; font-size: 0.8em; }
+        .xp-bar-bg { width: 80px; height: 10px; background: #333; border: 1px solid #555; border-radius: 5px; overflow: hidden; margin-left: -10px; z-index: 1; position: relative; }
+        .xp-bar-fill { height: 100%; background: linear-gradient(90deg, #ab47bc, #7b1fa2); width: 0%; transition: width 0.5s; }
+
+        /* --- HERNÍ OKNO (Zmenšování pro mobily) --- */
+        .game-wrapper {
+            position: relative;
+            width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden;
+        }
+
+        .game-viewport {
+            position: relative; 
+            border: 4px solid #37474f; 
+            border-radius: 4px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+            background-color: var(--bg-grass); 
+            overflow: hidden;
+            transition: opacity 0.3s;
+            box-sizing: content-box;
+            /* Default scale will be handled by JS */
+            transform-origin: center center;
+        }
+
+        .world-grid { 
+            display: grid; 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; 
+        }
+
+        /* --- TEXTURY --- */
+        .tile { position: relative; width: 100%; height: 100%; }
+        .tile.grass { background: radial-gradient(circle at 30% 30%, #8bc34a, #689f38); border: 1px solid rgba(0,0,0,0.03); }
+        .tile.concrete { background-color: #78909c; border: 1px solid #546e7a; background-image: repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(255,255,255,0.05) 5px, rgba(255,255,255,0.05) 10px); }
+        .tile.parking { background-color: #455a64; border: 1px dashed rgba(255,255,255,0.3); }
+        .tile.sidewalk { background-color: #eceff1; border: 1px solid #cfd8dc; box-shadow: inset 0 0 5px rgba(0,0,0,0.05); }
+        .tile.road { background-color: #263238; z-index: 2; }
+        .tile.road-top { border-bottom: 2px dashed #cfd8dc; } 
+        .tile.road-bottom { border-top: none; } 
+        .tile.road-vertical { background-color: #263238; border-left: 2px solid #37474f; border-right: 2px solid #37474f; }
+        .tile.crossing { background: repeating-linear-gradient(0deg, #263238, #263238 8px, #ffffff 8px, #ffffff 20px); box-shadow: 0 0 5px rgba(0,0,0,0.5); z-index: 3; border-left: 2px solid #37474f; border-right: 2px solid #37474f; }
+        .tile.soil { background: radial-gradient(circle, #5d4037 20%, #3e2723 100%); border: 1px solid #3e2723; position: relative; }
+        .tile.soil-locked { background: repeating-linear-gradient(135deg, #3e2723, #3e2723 10px, #281815 10px, #281815 20px); opacity: 0.8; }
+        .tile.soil-locked::after { content: '🔒'; position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0.5; font-size: 1.5em; }
+        .tile.soil::after { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 2em; pointer-events: none; transition: all 0.3s; }
+        .tile.soil.seeded::after { content: '🌰'; font-size: 1em; opacity: 0.6; }
+        .tile.soil.growing::after { content: '🌱'; font-size: 1.5em; color: #8bc34a; }
+        .tile.soil.ready::after { content: '🌾'; font-size: 2.2em; filter: drop-shadow(0 0 5px gold); }
+        .tile.soil.ready { background: radial-gradient(circle, #795548 20%, #3e2723 100%); box-shadow: 0 0 10px #ffd700; }
+        .crop-progress { position: absolute; bottom: 0; left: 0; height: 4px; background-color: #00bcd4; width: 0%; transition: width 0.1s linear; }
+
+        /* --- OBJEKTY --- */
+        .car { position: absolute; font-size: 2.2em; z-index: 20; pointer-events: none; transition: left 0.05s linear; filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.5)); display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; }
+        .game-object { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; pointer-events: none; z-index: 15; }
+        .building-sprite { font-size: 3em; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.6)); }
+        .building-label { background: rgba(0,0,0,0.85); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-top: -10px; border: 1px solid #999; white-space: nowrap; box-shadow: 0 2px 5px black; }
+        .decor-sprite { font-size: 2.2em; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4)); }
+        .truck-anim { transition: transform 3s ease-in-out; }
+        .driving-away { transform: translateX(600px); } 
+
+        #trafficLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; }
+        /* --- HRÁČ --- */
+        #player { position: absolute; width: 40px; height: 40px; z-index: 50; transition: top 0.2s linear, left 0.2s linear; display: flex; justify-content: center; align-items: center; }
+        .player-sprite { font-size: 2.2em; position: relative; top: -10px; filter: drop-shadow(0 5px 3px rgba(0,0,0,0.5)); }
+        .tool-overlay { position: absolute; bottom: 0; right: -5px; font-size: 1em; }
+        .swinging { animation: swing 0.2s ease-in-out; }
+        @keyframes swing { 0% { transform: rotate(0deg); } 50% { transform: rotate(-60deg); } 100% { transform: rotate(0deg); } }
+
+        /* --- MOBILE CONTROLS --- */
+        #mobileControls {
+            position: fixed; bottom: 20px; left: 0; width: 100%; height: 160px;
+            pointer-events: none; z-index: 200;
+            display: flex; justify-content: space-between; padding: 0 20px;
+        }
+        .control-group { pointer-events: auto; position: relative; width: 150px; height: 150px; }
+        
+        .dpad-btn {
+            position: absolute; width: 50px; height: 50px;
+            background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.5);
+            border-radius: 10px; display: flex; justify-content: center; align-items: center;
+            font-size: 1.5em; user-select: none;
+        }
+        .dpad-btn:active { background: rgba(255,255,255,0.5); }
+        
+        #btnUp { top: 0; left: 50px; }
+        #btnDown { bottom: 0; left: 50px; }
+        #btnLeft { top: 50px; left: 0; }
+        #btnRight { top: 50px; right: 0; }
+
+        #actionBtn {
+            position: absolute; right: 20px; bottom: 20px;
+            width: 80px; height: 80px; background: rgba(255, 193, 7, 0.4);
+            border: 2px solid rgba(255, 193, 7, 0.8); border-radius: 50%;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.2em; font-weight: bold; pointer-events: auto;
+        }
+        #actionBtn:active { background: rgba(255, 193, 7, 0.7); transform: scale(0.95); }
+
+        /* --- UI MODAL --- */
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 2000; display: none; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        .shop-window { background: #222; border: 2px solid var(--highlight); padding: 20px; width: 90%; max-width: 500px; border-radius: 10px; color: white; box-shadow: 0 0 30px rgba(255, 183, 77, 0.2); max-height: 80vh; overflow-y: auto; }
+        .shop-table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9em; }
+        .shop-table th { text-align: left; color: #aaa; padding: 10px; border-bottom: 1px solid #444; }
+        .shop-table td { padding: 12px 5px; border-bottom: 1px solid #333; }
+        .btn-buy { background: #2e7d32; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-buy:disabled { background: #444; color: #888; cursor: not-allowed; }
+        .btn-owned { background: transparent; color: #4caf50; border: 1px solid #4caf50; cursor: default; padding: 5px; }
+        .btn-close { background: #c62828; color: white; border: none; padding: 5px 15px; border-radius: 4px; cursor: pointer; float: right;}
+
+        #interactionBubble { position: absolute; background: white; color: black; padding: 5px 10px; border-radius: 15px; font-weight: bold; font-size: 0.8em; z-index: 150; display: none; transform: translateX(-50%); pointer-events: none; box-shadow: 0 4px 10px rgba(0,0,0,0.5); white-space: nowrap; }
+        .floating-text { position: absolute; font-weight: 900; font-size: 1.4em; animation: floatUp 1s forwards; z-index: 60; pointer-events: none; text-shadow: 2px 2px 0 #000; }
+        @keyframes floatUp { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
+        .zone-indicator { position: absolute; top: 50%; transform: translateY(-50%); font-size: 2em; color: rgba(255,255,255,0.7); font-weight: bold; pointer-events: none; z-index: 200; text-shadow: 0 0 10px black; }
+        
+        .reset-btn { position: fixed; top: 10px; right: 10px; background: rgba(255,0,0,0.3); border: 1px solid red; color: white; padding: 5px; font-size: 0.7em; z-index: 300; cursor: pointer; }
+
+        /* --- MENU STYLES --- */
+        .menu-btn { display: block; width: 100%; padding: 12px; margin: 10px 0; background: #37474f; color: white; border: 1px solid #555; border-radius: 8px; font-size: 1em; cursor: pointer; transition: background 0.2s; }
+        .menu-btn:hover { background: #455a64; }
+        .slider-container { margin: 20px 0; text-align: left; background: #333; padding: 15px; border-radius: 8px; }
+        input[type=range] { width: 100%; margin-top: 10px; accent-color: var(--highlight); }
+
+        /* --- QUESTS --- */
+        .quest-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #555; display: flex; justify-content: space-between; align-items: center; }
+        .quest-info { flex-grow: 1; text-align: left; }
+        .quest-progress-bg { width: 100%; height: 6px; background: #222; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        .quest-progress-fill { height: 100%; background: #76ff03; width: 0%; transition: width 0.3s; }
+        .btn-claim { background: #ffb74d; color: #000; border: none; padding: 8px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 183, 77, 0.7); } 70% { transform: scale(1.05); box-shadow: 0 0 10px 10px rgba(255, 183, 77, 0); } 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 183, 77, 0); } }
+
+        /* --- ACHIEVEMENTS --- */
+        .achievement-item { background: #333; padding: 10px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #555; display: flex; flex-direction: column; gap: 5px; position: relative; overflow: hidden; }
+        .achievement-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; z-index: 2; position: relative; }
+        .achievement-desc { font-size: 0.8em; color: #ccc; z-index: 2; position: relative; }
+        .achievement-reward { color: #ffd54f; font-size: 0.9em; z-index: 2; position: relative; }
+        .achievement-done { border-color: #76ff03; background: #1b5e20; }
+
+        /* --- WEATHER --- */
+        .rain-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 90; background: url('https://cdn.pixabay.com/animation/2023/06/25/21/56/21-56-06-69_512.gif'); opacity: 0.2; display: none; background-size: cover; }
+        .tile.soil.watered { filter: brightness(0.7) sepia(0.2) hue-rotate(180deg); }
+        .tile.soil.withered { filter: sepia(1) brightness(0.8); border-color: #5d4037; }
+        .tile.soil.withered::after { content: '🥀' !important; font-size: 1.5em; filter: none !important; }
+        .tile.soil.dead { filter: grayscale(1) brightness(0.3); border-color: #000; }
+        .tile.soil.dead::after { content: '💀' !important; font-size: 1.5em; filter: none !important; }
+
+        .pc-controls-hint {
+            position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+            background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
+            color: rgba(255,255,255,0.7); font-size: 0.9em; pointer-events: none; z-index: 100;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <button class="reset-btn" onclick="resetGame()">RESET DAT</button>
+
+    <div class="hud-panel">
+        <div class="stat-box">
+            <span>💎</span> <span style="color: #4dd0e1; font-weight: bold;" id="moneyDisplay">0</span>
+        </div>
+        <div class="stat-box">
+            <div class="level-badge" id="levelDisplay">1</div>
+            <div class="xp-bar-bg"><div class="xp-bar-fill" id="xpBar"></div></div>
+        </div>
+        <div class="stat-box">
+            <span onclick="openQuestLog()" style="cursor:pointer; display:flex; align-items:center; gap:5px;">📜 <span id="questNotif" style="display:none; width:8px; height:8px; background:red; border-radius:50%;"></span></span>
+        </div>
+        <div class="stat-box">
+            <span>🌡️</span> <span id="tempDisplay" style="font-weight:bold;">20°C</span>
+        </div>
+        <div class="stat-box">
+            <span></span> <span id="basketText">0/10</span>
+            <div class="basket-bar-bg"><div class="basket-bar-fill" id="basketBar"></div></div>
+        </div>
+        <div class="stat-box" style="font-size: 0.8em; color: #aaa;">
+            <span id="locationName">Načítám...</span>
+        </div>
+    </div>
+
+    <div class="game-wrapper">
+        <div class="game-viewport" id="gameContainer">
+            <div class="world-grid" id="worldGrid"></div>
+            <div id="rainLayer" class="rain-layer"></div>
+            <div id="trafficLayer"></div>
+            <div id="player">
+                <div class="player-sprite">👨‍🌾</div>
+                <div class="tool-overlay" id="equippedTool">⛏️</div>
+            </div>
+            <div id="interactionBubble"></div>
+            <div class="zone-indicator" style="left: 10px; display:none;" id="arrowLeft">⬅ Město</div>
+            <div class="zone-indicator" style="right: 10px; display:none;" id="arrowRight">Farma ➡</div>
+        </div>
+    </div>
+
+    <div id="mobileControls">
+        <div class="control-group">
+            <div class="dpad-btn" id="btnUp">⬆️</div>
+            <div class="dpad-btn" id="btnDown">⬇️</div>
+            <div class="dpad-btn" id="btnLeft">⬅️</div>
+            <div class="dpad-btn" id="btnRight">➡️</div>
+        </div>
+        <div class="control-group" style="width: 100px;">
+            <div id="actionBtn">AKCE</div>
+        </div>
+    </div>
+
+    <div class="pc-controls-hint" id="pcControls">
+        Pohyb: <b>WSAD</b> | Akce: <b>E</b> | Menu: <b>ESC</b> | Nastavení: <b>P</b>
+    </div>
+
+    <div class="modal-overlay" id="shopModal" onclick="if(event.target === this) closeShop()">
+        <div class="shop-window">
+            <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h2 style="margin:0;" id="shopTitle">Obchod</h2>
+                <div style="display:flex; align-items:center; gap:15px;">
+                    <span style="color:#4dd0e1; font-weight:bold; font-size:1.2em;" id="shopMoneyDisplay"></span>
+                    <button class="btn-close" onclick="closeShop()" style="float:none;">X</button>
+                </div>
+            </div>
+            <div id="shopContent"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="questModal" onclick="if(event.target === this) closeQuestLog()">
+        <div class="shop-window">
+            <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h2 style="margin:0;">Úkoly</h2>
+                <button class="btn-close" onclick="closeQuestLog()">X</button>
+            </div>
+            <div id="questContent"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="achievementsModal" onclick="if(event.target === this) closeAchievements()">
+        <div class="shop-window">
+            <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h2 style="margin:0;">Achievementy</h2>
+                <button class="btn-close" onclick="closeAchievements()">X</button>
+            </div>
+            <div id="achievementsContent"></div>
+        </div>
+    </div>
+
+    <!-- MAIN MENU -->
+    <div class="modal-overlay" id="mainMenu" style="display: flex; flex-direction: column; background: #121212; z-index: 3000;">
+        <h1 style="font-size: 3em; color: #7cb342; text-shadow: 2px 2px #000; margin-bottom: 10px;">FarmCraft</h1>
+        <h3 style="color: #aaa; margin-top: 0; margin-bottom: 40px;">Mobile Edition</h3>
+        <div style="width: 300px;">
+            <button class="menu-btn" style="padding: 20px; font-size: 1.2em; background: #2e7d32; border-color: #4caf50;" onclick="startSingleplayer()">Singleplayer</button>
+            <button class="menu-btn" onclick="openAchievements()">Achievementy</button>
+            <button class="menu-btn" onclick="openSettings()">Nastavení</button>
+        </div>
+    </div>
+
+    <!-- AUDIO & MENUS -->
+    <audio id="bgMusic" loop>
+        <source src="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
+    </audio>
+
+    <div class="modal-overlay" id="escMenu">
+        <div class="shop-window" style="text-align: center;">
+            <h2 style="margin-top:0;">Pauza</h2>
+            <button class="menu-btn" onclick="resumeGame()">Pokračovat</button>
+            <button class="menu-btn" onclick="openAchievements()">Achievementy</button>
+            <button class="menu-btn" onclick="openSettings()">Nastavení</button>
+            <button class="menu-btn" onclick="saveAndExit()">Uložit a Ukončit</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="settingsMenu">
+        <div class="shop-window" style="text-align: center;">
+            <h2 style="margin-top:0;">Nastavení</h2>
+            <div class="slider-container">
+                <label>Hlasitost hudby: <span id="volValue">50%</span></label>
+                <input type="range" id="volSlider" min="0" max="100" value="50" oninput="updateVolume(this.value)">
+            </div>
+            <div class="slider-container">
+                <label>Přehrávání:</label>
+                <button class="menu-btn" id="btnMusicToggle" onclick="toggleMusic()">Stop</button>
+                <div style="display:flex; gap:10px;">
+                    <button class="menu-btn" onclick="changeSpeed(-0.25)">Zpomalit</button>
+                    <button class="menu-btn" onclick="changeSpeed(0.25)">Zrychlit</button>
+                </div>
+                <small>Rychlost: <span id="speedValue">1.00x</span></small>
+            </div>
+            <button class="menu-btn" onclick="closeSettings()">Zpět</button>
+        </div>
+    </div>
+
+    <script>
+        const TILE_SIZE = 45;
+        const COLS = 26;
+        const ROWS = 16;
+        
+        // Data hry
+        let money = 100;
+        let xp = 0;
+        let level = 1;
+        let maxXp = 100;
+        let stats = { totalMoney: 0, totalSold: 0, totalHarvested: 0 };
+        let completedAchievementIds = [];
+        let holding = 0;
+        let inventory = {}; // { itemKey: count }
+        let siloStorage = {}; // { itemKey: count }
+        let barnStorage = {}; // { itemKey: count }
+        let farmCrops = []; // { x, y, type, plantTime }
+        let currentMapId = 'farm'; 
+        let playerPos = { x: 13, y: 8 }; 
+        let activeQuests = []; // { id, type, target, amount, current, reward, desc }
+        let currentHoeIndex = 0;
+        let currentBasketIndex = 0;
+        let currentCanIndex = 0;
+        let currentShovelIndex = 0;
+        let weather = 'sun';
+        let temperature = 20;
+        let isPaused = false;
+        let gameStarted = false;
+        let isMobile = false;
+        let musicStarted = false;
+        
+        let isMoving = false;
+        let isTruckBusy = false;
+        let moveSpeed = 250; 
+        
+        // Objekty pro data (aby se daly uložit)
+        const CROP_DEFS = [
+            { id: 'wheat', name: 'Obilí', price: 20, level: 1, color: '#eecfa1', icon: '🌾' },
+            { id: 'lettuce', name: 'Salát', price: 25, level: 2, color: '#a5d6a7', icon: '🥬' },
+            { id: 'carrot', name: 'Mrkev', price: 30, level: 3, color: '#ffcc80', icon: '🥕' },
+            { id: 'potato', name: 'Brambory', price: 35, level: 4, color: '#d7ccc8', icon: '🥔' },
+            { id: 'rapeseed', name: 'Řepka', price: 45, level: 5, color: '#fff59d', icon: '🌼' },
+            { id: 'tomato', name: 'Rajče', price: 55, level: 6, color: '#ef9a9a', icon: '🍅' },
+            { id: 'cucumber', name: 'Okurka', price: 65, level: 7, color: '#c5e1a5', icon: '🥒' },
+            { id: 'corn', name: 'Kukuřice', price: 80, level: 8, color: '#ffe082', icon: '🌽' },
+            { id: 'strawberry', name: 'Jahoda', price: 100, level: 9, color: '#f48fb1', icon: '🍓' },
+            { id: 'onion', name: 'Cibule', price: 120, level: 10, color: '#ffe0b2', icon: '🧅' },
+            { id: 'pepper', name: 'Paprika', price: 140, level: 11, color: '#a5d6a7', icon: '🫑' },
+            { id: 'garlic', name: 'Česnek', price: 160, level: 12, color: '#f5f5f5', icon: '🧄' },
+            { id: 'eggplant', name: 'Lilek', price: 180, level: 13, color: '#b39ddb', icon: '🍆' },
+            { id: 'watermelon', name: 'Meloun', price: 200, level: 14, color: '#ef9a9a', icon: '🍉' },
+            { id: 'pumpkin', name: 'Dýně', price: 230, level: 15, color: '#ffab91', icon: '🎃' },
+            { id: 'radish', name: 'Ředkvička', price: 260, level: 16, color: '#f8bbd0', icon: '🍠' },
+            { id: 'chili', name: 'Chili', price: 300, level: 17, color: '#ef5350', icon: '🌶️' },
+            { id: 'sunflower', name: 'Slunečnice', price: 350, level: 18, color: '#fff176', icon: '🌻' },
+            { id: 'grapes', name: 'Hrozny', price: 400, level: 19, color: '#ce93d8', icon: '🍇' },
+            { id: 'blueberry', name: 'Borůvky', price: 450, level: 20, color: '#90caf9', icon: '🫐' },
+            { id: 'pineapple', name: 'Ananas', price: 500, level: 21, color: '#fff59d', icon: '🍍' },
+            { id: 'melon', name: 'Cukrový meloun', price: 550, level: 22, color: '#c8e6c9', icon: '🍈' },
+            { id: 'mushroom', name: 'Houby', price: 600, level: 23, color: '#ffccbc', icon: '🍄' },
+            { id: 'rice', name: 'Rýže', price: 650, level: 24, color: '#e0e0e0', icon: '🌾' },
+            { id: 'broccoli', name: 'Brokolice', price: 700, level: 25, color: '#81c784', icon: '🥦' }
+        ];
+
+        const ITEMS = {};
+
+        // Inicializace plodin a stylů
+        (function() {
+            let style = document.createElement('style');
+            let css = '';
+            CROP_DEFS.forEach(c => {
+                ITEMS[c.id] = { name: c.name, type: 'crop', price: c.price, seed: c.id + '_seed', xp: Math.ceil(c.price/4) };
+                ITEMS[c.id + '_seed'] = { name: 'Semínko ' + c.name, type: 'seed', price: Math.ceil(c.price * 0.4), crop: c.id, reqLevel: c.level };
+                css += `.tile.soil.ready[data-type="${c.id}"] { background: radial-gradient(circle, ${c.color} 20%, #3e2723 100%); }`;
+                css += `.tile.soil.ready[data-type="${c.id}"]::after { content: '${c.icon}'; filter: drop-shadow(0 0 5px ${c.color}); }`;
+            });
+            document.head.appendChild(style);
+        })();
+
+        const ACHIEVEMENTS = [
+            { id: 'money_1k', name: 'První výplata', desc: 'Vydělej celkem 1 000 Kč', type: 'money', target: 1000, reward: 100 },
+            { id: 'money_10k', name: 'Boháč', desc: 'Vydělej celkem 10 000 Kč', type: 'money', target: 10000, reward: 1000 },
+            { id: 'money_100k', name: 'Magnát', desc: 'Vydělej celkem 100 000 Kč', type: 'money', target: 100000, reward: 5000 },
+            { id: 'sold_100', name: 'Stánkař', desc: 'Prodej 100 produktů', type: 'sold', target: 100, reward: 50 },
+            { id: 'sold_1k', name: 'Obchodník', desc: 'Prodej 1 000 produktů', type: 'sold', target: 1000, reward: 500 },
+            { id: 'sold_10k', name: 'Exportér', desc: 'Prodej 10 000 produktů', type: 'sold', target: 10000, reward: 2000 },
+            { id: 'harvest_500', name: 'Zahradník', desc: 'Skliď 500 plodin', type: 'harvest', target: 500, reward: 200 },
+            { id: 'harvest_5k', name: 'Kombajn', desc: 'Skliď 5 000 plodin', type: 'harvest', target: 5000, reward: 1000 }
+        ];
+
+        const HOES = [
+            { name: "Rezavá", price: 0, bonus: 1, icon: '⛏️' },
+            { name: "Železná", price: 500, bonus: 2, icon: '⚒️' },
+            { name: "Zlatá", price: 1500, bonus: 3, icon: '🔱' },
+            { name: "Diamant", price: 5000, bonus: 5, icon: '💎' }
+        ];
+
+        const BASKETS = [
+            { name: "Kapsy", price: 0, cap: 10 },
+            { name: "Pytel", price: 300, cap: 20 },
+            { name: "Košík", price: 800, cap: 40 },
+            { name: "Krosna", price: 2000, cap: 80 },
+            { name: "Trakař", price: 5000, cap: 150 }
+        ];
+
+        const CANS = [
+            { name: "Žádná", price: 0, speed: 0, icon: '❌' },
+            { name: "Stará konev", price: 200, speed: 0.1, icon: '🚿' },
+            { name: "Plechová", price: 1000, speed: 0.25, icon: '🪣' },
+            { name: "Zahradní", price: 3000, speed: 0.4, icon: '⛲' },
+            { name: "Automat", price: 8000, speed: 0.6, icon: '🤖' }
+        ];
+
+        const SHOVELS = [
+            { name: "Žádná", price: 0, power: 0, icon: '❌' },
+            { name: "Rezavá", price: 300, power: 1, icon: '🥄' },
+            { name: "Železná", price: 1500, power: 1, icon: '🗡️' },
+            { name: "Diamantová", price: 5000, power: 1, icon: '💎' }
+        ];
+
+        const SKILLS = {
+            speed: { name: "Rychlost", desc: "Rychlejší chůze", level: 1, maxLevel: 5, baseCost: 200, effect: updatePlayerAnim },
+            luck: { name: "Štěstí", desc: "Šance na 2x úrodu", level: 0, maxLevel: 5, baseCost: 300 },
+            growth: { name: "Hnojivo", desc: "Rychlejší růst", level: 1, maxLevel: 5, baseCost: 400 },
+            trade: { name: "Obchod", desc: "+Cena prodeje", level: 1, maxLevel: 5, baseCost: 250 }
+        };
+
+        const MAPS = {
+            farm: {
+                name: "Farma",
+                fields: [
+                    { id: 0, x: 2, y: 2, w: 6, h: 4, price: 0, unlocked: true },  
+                    { id: 1, x: 2, y: 10, w: 6, h: 4, price: 800, unlocked: false }, 
+                    { id: 2, x: 15, y: 2, w: 8, h: 4, price: 1500, unlocked: false },  
+                    { id: 3, x: 15, y: 9, w: 8, h: 5, price: 1500, unlocked: false }   
+                ],
+                buildings: [ 
+                    { id: 'truck', x: 22, y: 7, w: 3, h: 2, icon: '🚚', label: 'Prodej', type: 'auto', action: sellCrops },
+                    { id: 'barn', x: 1, y: 0, w: 3, h: 2, icon: '🛖', label: 'Stodola', type: 'key', action: () => openStorage('barn'), desc: "Sklad semen" },
+                    { id: 'silo', x: 5, y: 0, w: 2, h: 2, icon: '🏭', label: 'Silo', type: 'key', action: () => openStorage('silo'), desc: "Sklad plodin" },
+                    { id: 'house', x: 20, y: 0, w: 3, h: 2, icon: '🏡', label: 'Dům', type: 'decor' }
+                ],
+                decor: [ { x: 10, y: 14, icon: '🌻' }, { x: 1, y: 14, icon: '🪵' } ],
+                specialTiles: []
+            },
+            town: {
+                name: "Město",
+                fields: [],
+                buildings: [
+                    { id: 'supermarket', x: 11, y: 2, w: 4, h: 4, icon: '🏪', label: 'Shop', type: 'key', action: () => openItemShop('basket'), desc: "Potřeby" },
+                    { id: 'hoeShop', x: 5, y: 3, w: 3, h: 3, icon: '⚒️', label: 'Kovář', type: 'key', action: () => openItemShop('hoe'), desc: "Nástroje" },
+                    { id: 'skillShop', x: 18, y: 3, w: 3, h: 3, icon: '🏛️', label: 'Cech', type: 'key', action: openSkillShop, desc: "Schopnosti" },
+                    { id: 'seedShop', x: 20, y: 9, w: 3, h: 3, icon: '🌱', label: 'Semena', type: 'key', action: openSeedShop, desc: "Semena" }
+                ],
+                decor: [
+                    { x: 2, y: 3, icon: '🌳' }, { x: 8, y: 5, icon: '🪑' }, { x: 16, y: 5, icon: '🪑' }, { x: 22, y: 3, icon: '🌳' },
+                    { x: 20, y: 12, icon: '⛲' }, { x: 23, y: 12, icon: '🌳' }, { x: 21, y: 14, icon: '🌲' },
+                    { x: 3, y: 12, icon: '🚗' }, { x: 6, y: 12, icon: '🚙' }, { x: 9, y: 12, icon: '🛻' }
+                ],
+                specialTiles: [
+                    { type: 'crossing', x: 13, y: 7 }, { type: 'crossing', x: 13, y: 8 },
+                    { type: 'road-vertical', x: 6, y: 9 }, { type: 'road-vertical', x: 6, y: 10 } 
+                ]
+            }
+        };
+
+        const containerEl = document.getElementById('gameContainer');
+        const gridEl = document.getElementById('worldGrid');
+        const trafficEl = document.getElementById('trafficLayer');
+        const playerEl = document.getElementById('player');
+        const bubbleEl = document.getElementById('interactionBubble');
+        const modalEl = document.getElementById('shopModal');
+        const escMenuEl = document.getElementById('escMenu');
+        const settingsMenuEl = document.getElementById('settingsMenu');
+        const bgMusic = document.getElementById('bgMusic');
+        
+        let tiles = []; 
+        let truckEl = { dom: null };
+        let cars = [];
+
+        // --- INIT & SCALING ---
+        function init() {
+            containerEl.style.width = (COLS * TILE_SIZE) + 'px';
+            containerEl.style.height = (ROWS * TILE_SIZE) + 'px';
+            gridEl.style.gridTemplateColumns = `repeat(${COLS}, ${TILE_SIZE}px)`;
+            gridEl.style.gridTemplateRows = `repeat(${ROWS}, ${TILE_SIZE}px)`;
+
+            loadGameData(); // Načíst save
+            resizeGame(); // Scale pro mobil
+            detectDevice(); // Detekce zařízení
+            checkQuestsInit(); // Inicializace úkolů
+            
+            loadMap(currentMapId);
+            updatePlayerAnim();
+            updatePlayerPos(true);
+            updateUI();
+            isPaused = true; // Start paused for main menu
+            
+            setInterval(updateWeather, 30000); // Check weather change
+            setInterval(checkWithering, 2000); // Check for withering
+            setInterval(updateTraffic, 50);
+            setInterval(saveGameData, 10000); // Autosave 10s
+
+            window.addEventListener('keydown', handleInput);
+            window.addEventListener('resize', resizeGame);
+            
+            setupTouchControls();
+            
+            // Start music on interaction
+            const startAudio = () => { 
+                if(!musicStarted) { 
+                    bgMusic.volume = 0.5; 
+                    bgMusic.play()
+                        .then(() => { musicStarted = true; })
+                        .catch(e => console.log("Čekám na interakci pro hudbu...")); 
+                } 
+            };
+            window.addEventListener('click', startAudio); window.addEventListener('keydown', startAudio); window.addEventListener('touchstart', startAudio);
+        }
+
+        function detectDevice() {
+            isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 'ontouchstart' in window;
+            
+            const mobControls = document.getElementById('mobileControls');
+            const pcControls = document.getElementById('pcControls');
+            
+            if (isMobile) {
+                mobControls.style.display = 'flex';
+                pcControls.style.display = 'none';
+            } else {
+                mobControls.style.display = 'none';
+                pcControls.style.display = 'block';
+            }
+            resizeGame();
+        }
+
+        function resizeGame() {
+            let scaleX = window.innerWidth / (COLS * TILE_SIZE);
+            let scaleY = window.innerHeight / (ROWS * TILE_SIZE);
+            let scale = Math.min(scaleX, scaleY) * 0.95; 
+            containerEl.style.transform = `scale(${scale})`;
+        }
+
+        function startSingleplayer() {
+            document.getElementById('mainMenu').style.display = 'none';
+            gameStarted = true;
+            isPaused = false;
+        }
+
+        // --- SAVE SYSTEM ---
+        function saveGameData() {
+            const data = {
+                money, xp, level, stats, completedAchievementIds,
+                inventory, siloStorage, barnStorage, farmCrops, currentMapId, playerPos, 
+                currentHoeIndex, currentBasketIndex, currentCanIndex, currentShovelIndex,
+                activeQuests,
+                skills: Object.keys(SKILLS).map(k => ({ key: k, level: SKILLS[k].level })),
+                unlockedFields: MAPS.farm.fields.map(f => ({ id: f.id, unlocked: f.unlocked }))
+            };
+            localStorage.setItem('farmSave', JSON.stringify(data));
+            console.log("Hra uložena");
+        }
+
+        function loadGameData() {
+            const json = localStorage.getItem('farmSave');
+            if (json) {
+                try {
+                    const data = JSON.parse(json);
+                    money = data.money;
+                    xp = data.xp || 0;
+                    level = data.level || 1;
+                    maxXp = level * 100;
+                    stats = data.stats || { totalMoney: 0, totalSold: 0, totalHarvested: 0 };
+                    completedAchievementIds = data.completedAchievementIds || [];
+                    inventory = data.inventory || {};
+                    siloStorage = data.siloStorage || {};
+                    barnStorage = data.barnStorage || {};
+                    farmCrops = data.farmCrops || [];
+                    
+                    if (data.holding && Object.keys(inventory).length === 0) { inventory['wheat'] = data.holding; }
+                    updateHolding();
+                    activeQuests = data.activeQuests || [];
+                    currentMapId = data.currentMapId || 'farm';
+                    // Bezpečnostní kontrola: pokud mapa neexistuje, reset na farmu
+                    if (!MAPS[currentMapId]) currentMapId = 'farm';
+
+                    playerPos = data.playerPos || { x: 13, y: 8 };
+                    currentHoeIndex = data.currentHoeIndex || 0;
+                    if (currentHoeIndex >= HOES.length) currentHoeIndex = 0;
+                    currentBasketIndex = data.currentBasketIndex || 0;
+                    if (currentBasketIndex >= BASKETS.length) currentBasketIndex = 0;
+                    currentCanIndex = data.currentCanIndex || 0;
+                    currentShovelIndex = data.currentShovelIndex || 0;
+                    
+                    if (data.skills) {
+                        data.skills.forEach(s => { if(SKILLS[s.key]) SKILLS[s.key].level = s.level; });
+                    }
+                    if (data.unlockedFields) {
+                        data.unlockedFields.forEach(uf => {
+                            let f = MAPS.farm.fields.find(field => field.id === uf.id);
+                            if (f) f.unlocked = uf.unlocked;
+                        });
+                    }
+                    checkQuestsInit();
+                    document.getElementById('equippedTool').innerText = HOES[currentHoeIndex].icon;
+                } catch (e) { console.error("Chyba načítání save", e); }
+            }
+        }
+
+        function resetGame() {
+            if(confirm("Opravdu vymazat postup?")) {
+                localStorage.removeItem('farmSave');
+                location.reload();
+            }
+        }
+
+        // --- MAP LOGIC ---
+        function loadMap(mapId) {
+            currentMapId = mapId;
+            document.getElementById('locationName').innerText = MAPS[mapId].name;
+            containerEl.style.backgroundColor = mapId === 'town' ? '#7cb342' : '#7cb342';
+            
+            document.getElementById('arrowLeft').style.display = mapId === 'farm' ? 'block' : 'none';
+            document.getElementById('arrowRight').style.display = mapId === 'town' ? 'block' : 'none';
+
+            gridEl.innerHTML = '';
+            containerEl.querySelectorAll('.game-object, .floating-text').forEach(e => e.remove());
+            trafficEl.innerHTML = ''; cars = []; tiles = [];
+            
+            // Optimalizace: Vytvoříme fragment v paměti a vložíme ho najednou
+            const fragment = document.createDocumentFragment();
+            const cropsToInit = []; // Seznam plodin k nastartování až po vložení do DOM
+
+            const mapData = MAPS[mapId];
+
+            for (let y = 0; y < ROWS; y++) {
+                let row = [];
+                for (let x = 0; x < COLS; x++) {
+                    let div = document.createElement('div');
+                    let type = 'grass';
+                    let cropData = null;
+                    let lockedId = null;
+
+                    if (mapId === 'farm') {
+                        let field = mapData.fields.find(f => x >= f.x && x < f.x + f.w && y >= f.y && y < f.y + f.h);
+                        if (field) {
+                            if (field.unlocked) {
+                                type = 'soil';
+                                let prog = document.createElement('div');
+                                prog.className = 'crop-progress';
+                                div.appendChild(prog);
+                                cropData = { x, y, el: div, ready: false, type: null, progressEl: div.querySelector('.crop-progress'), timerId: null };
+                                let saved = farmCrops.find(c => c.x === x && c.y === y);
+                                if (saved) cropsToInit.push({ crop: cropData, type: saved.type, time: saved.plantTime });
+                            } else { type = 'soil-locked'; lockedId = field.id; }
+                        }
+                        if ((x === 0 && y === 7) || (x > 0 && y === 7) || (x === 10 && y >= 0)) {
+                             div.style.background = '#8d6e63'; div.style.border = '1px dashed rgba(255,255,255,0.2)';
+                        }
+                        if (x >= 15 && x <= 22 && y === 7) { type = 'grass'; div.style.background = '#8d6e63'; }
+                    }
+
+                    if (mapId === 'town') {
+                        let underBuilding = mapData.buildings.some(b => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
+                        if (underBuilding) type = 'concrete';
+                        if (y === 6 || y === 9) type = 'sidewalk';
+                        if (y === 7) type = 'road tile road-top';
+                        if (y === 8) type = 'road tile road-bottom';
+                        if (y >= 11 && y <= 14 && x >= 2 && x <= 10) type = 'parking';
+                        let spec = mapData.specialTiles.find(s => s.x === x && s.y === y);
+                        if (spec) type = spec.type;
+                    }
+
+                    if (type.includes('tile')) div.className = type; else div.className = `tile ${type}`;
+                    fragment.appendChild(div);
+                    row.push({ type: type, crop: cropData, fieldId: lockedId, el: div });
+                }
+                tiles.push(row);
+            }
+            gridEl.appendChild(fragment);
+            
+            // Nastartovat růst až teď, když jsou elementy ve stránce
+            cropsToInit.forEach(c => startGrowth(c.crop, c.type, c.time));
+
+            mapData.buildings.forEach(b => {
+                let el = document.createElement('div');
+                el.className = 'game-object';
+                if (b.id === 'truck') { el.classList.add('truck-anim'); truckEl.dom = el; }
+                el.style.left = (b.x * TILE_SIZE) + 'px';
+                el.style.top = (b.y * TILE_SIZE) + 'px';
+                el.style.width = (b.w * TILE_SIZE) + 'px';
+                el.style.height = (b.h * TILE_SIZE) + 'px';
+                el.innerHTML = `<div class="building-sprite">${b.icon}</div><div class="building-label">${b.label}</div>`;
+                containerEl.appendChild(el);
+            });
+
+            mapData.decor.forEach(d => {
+                let el = document.createElement('div');
+                el.className = 'game-object';
+                el.style.left = (d.x * TILE_SIZE) + 'px';
+                el.style.top = (d.y * TILE_SIZE) + 'px';
+                el.style.width = TILE_SIZE + 'px';
+                el.style.height = TILE_SIZE + 'px';
+                el.innerHTML = `<div class="decor-sprite">${d.icon}</div>`;
+                containerEl.appendChild(el);
+            });
+        }
+
+        // --- TRAFFIC ---
+        function spawnCar() {
+            let lane = Math.random() > 0.5 ? 7 : 8; 
+            // 7 = Horní pruh = Doleva (-1)
+            // 8 = Dolní pruh = Doprava (1)
+            let direction = lane === 7 ? -1 : 1; 
+            let startX = direction === 1 ? -60 : COLS * TILE_SIZE + 10;
+            
+            let blocked = cars.some(c => Math.abs(c.x - startX) < 150 && Math.sign(c.speed) === direction);
+            if (blocked) return;
+
+            let carTypes = ['🚗', '🚕', '🚙', '🚚', '🚐', '🏎️'];
+            let icon = carTypes[Math.floor(Math.random() * carTypes.length)];
+            
+            let el = document.createElement('div');
+            el.className = 'car'; el.innerText = icon;
+            el.style.top = (lane * TILE_SIZE) + 'px'; el.style.left = startX + 'px';
+            
+            // Otočení: Pokud jede doleva (-1), otočit (scaleX(1))
+            if (direction === -1) el.style.transform = 'scaleX(1)';
+            else el.style.transform = 'scaleX(-1)';
+
+            trafficEl.appendChild(el);
+            cars.push({ el: el, x: startX, speed: direction * (3 + Math.random() * 2) });
+        }
+
+        function updateTraffic() {
+            if (currentMapId !== 'town') return;
+            if (Math.random() < 0.02) spawnCar();
+            cars.forEach((car, index) => {
+                car.x += car.speed;
+                car.el.style.left = car.x + 'px';
+                if (car.x > COLS * TILE_SIZE + 50 || car.x < -100) {
+                    car.el.remove(); cars.splice(index, 1);
+                }
+            });
+        }
+
+        // --- CONTROLS ---
+        function setupTouchControls() {
+            const bindBtn = (id, key) => {
+                const btn = document.getElementById(id);
+                btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput({ key: key }); });
+                // Pro opakovaný pohyb při držení by se musel použít interval, pro jednoduchost zatím klikání
+            };
+            bindBtn('btnUp', 'w'); bindBtn('btnDown', 's');
+            bindBtn('btnLeft', 'a'); bindBtn('btnRight', 'd');
+            
+            document.getElementById('actionBtn').addEventListener('touchstart', (e) => {
+                e.preventDefault(); handleInteraction();
+            });
+        }
+
+        function handleInput(e) {
+            if (e.key === 'Escape') {
+                if (settingsMenuEl.style.display === 'flex') { closeSettings(); return; }
+                if (modalEl.style.display === 'flex') { closeShop(); return; }
+                togglePause();
+                return;
+            }
+
+            if (e.key.toLowerCase() === 'p') {
+                if (settingsMenuEl.style.display === 'flex') {
+                    closeSettings();
+                } else {
+                    if (modalEl.style.display === 'flex') closeShop();
+                    closeQuestLog();
+                    closeAchievements();
+                    isPaused = true;
+                    openSettings();
+                }
+                return;
+            }
+
+            if (isPaused) return;
+            if (modalEl.style.display === 'flex') return;
+            if (isMoving) return;
+            
+            let dx = 0, dy = 0;
+            const k = e.key.toLowerCase();
+            if (k === 'w') dy = -1; if (k === 's') dy = 1;
+            if (k === 'a') dx = -1; if (k === 'd') dx = 1;
+
+            if (dx !== 0 || dy !== 0) {
+                let nx = playerPos.x + dx;
+                let ny = playerPos.y + dy;
+                
+                // Map switch
+                if (nx < 0) {
+                    if (currentMapId === 'farm') { switchMap('left'); return; } else nx = 0;
+                }
+                if (nx >= COLS) {
+                    if (currentMapId === 'town') { switchMap('right'); return; } else nx = COLS - 1;
+                }
+
+                if (ny >= 0 && ny < ROWS) {
+                    isMoving = true; playerPos.x = nx; playerPos.y = ny;
+                    updatePlayerPos();
+                    setTimeout(() => { isMoving = false; }, moveSpeed);
+                }
+            }
+            if (k === 'e') handleInteraction();
+        }
+
+        function switchMap(direction) {
+            containerEl.style.transform = `scale(${window.innerWidth/(COLS*TILE_SIZE)*0.95}) ` + (direction === 'left' ? 'translateX(20px)' : 'translateX(-20px)');
+            containerEl.style.opacity = '0';
+            setTimeout(() => {
+                if (direction === 'left') { loadMap('town'); playerPos.x = COLS - 2; }
+                else { loadMap('farm'); playerPos.x = 1; }
+                updatePlayerPos(true);
+                containerEl.style.opacity = '1';
+                resizeGame(); // Reset scale transform
+            }, 300);
+        }
+
+        // --- CORE GAME LOGIC (Movement, Interaction, Harvest) ---
+        function updatePlayerPos(instant = false) {
+            if (instant) playerEl.style.transition = 'none';
+            playerEl.style.left = (playerPos.x * TILE_SIZE) + 'px';
+            playerEl.style.top = (playerPos.y * TILE_SIZE) + 'px';
+            if (instant) { void playerEl.offsetWidth; updatePlayerAnim(); }
+            checkUnderFeet(); checkProximity();
+        }
+        function updatePlayerAnim() {
+            moveSpeed = Math.max(100, 250 - (SKILLS.speed.level - 1) * 30);
+            let s = moveSpeed / 1000;
+            playerEl.style.transition = `top ${s}s linear, left ${s}s linear`;
+        }
+        function checkUnderFeet() {
+            try {
+                let tile = tiles[playerPos.y][playerPos.x];
+                if (tile.crop && tile.crop.ready) harvest(tile.crop);
+                
+                // Auto-planting logic
+                if (tile.type.includes('soil') && !tile.type.includes('locked') && tile.crop && !tile.crop.ready && !tile.el.classList.contains('growing') && !tile.el.classList.contains('seeded')) {
+                    let seedKey = Object.keys(inventory).find(k => ITEMS[k] && ITEMS[k].type === 'seed' && inventory[k] > 0);
+                    if (seedKey) {
+                        inventory[seedKey]--; updateHolding(); updateUI();
+                        startGrowth(tile.crop, ITEMS[seedKey].crop);
+                        showFloatingText("-1 " + ITEMS[seedKey].name, "#fff");
+                    }
+                }
+
+                if (currentMapId === 'farm' && playerPos.x >= 22 && playerPos.y === 7) sellCrops();
+            } catch(e) { console.error("Chyba v checkUnderFeet:", e); }
+        }
+        function handleInteraction() {
+            let b = MAPS[currentMapId].buildings.find(bu => isNear(playerPos, bu));
+            if (b && b.type === 'key') { b.action(); return; }
+            
+            let tile = tiles[playerPos.y][playerPos.x];
+            
+            // Dead crop removal (Lopata)
+            if (tile.crop && tile.crop.dead) {
+                if (SHOVELS[currentShovelIndex].power > 0) {
+                    farmCrops = farmCrops.filter(c => c.x !== tile.crop.x || c.y !== tile.crop.y);
+                    tile.crop.dead = false;
+                    tile.crop.ready = false; 
+                    tile.crop.type = null;
+                    tile.el.className = 'tile soil'; 
+                    tile.el.removeAttribute('data-type');
+                    showFloatingText("Vykopáno lopatou", "#8d6e63");
+                } else {
+                    showFloatingText("Potřebuješ lopatu!", "#f44336");
+                }
+                return;
+            }
+
+            // Planting logic
+            if (tile.type.includes('soil') && !tile.type.includes('locked') && tile.crop && tile.crop.ready === false && !tile.el.classList.contains('growing') && !tile.el.classList.contains('seeded')) {
+                // Find first seed
+                let seedKey = Object.keys(inventory).find(k => ITEMS[k] && ITEMS[k].type === 'seed' && inventory[k] > 0);
+                if (seedKey) {
+                    inventory[seedKey]--; updateHolding(); updateUI();
+                    startGrowth(tile.crop, ITEMS[seedKey].crop);
+                    showFloatingText("-1 " + ITEMS[seedKey].name, "#fff");
+                } else { showFloatingText("Nemáš semena!", "#f44336"); }
+                return;
+            } else if (tile.type.includes('soil') && tile.crop && !tile.crop.ready && tile.el.classList.contains('growing')) {
+                waterCrop(tile.crop);
+                return;
+            }
+
+            if (tile.fieldId !== null) buyField(tile.fieldId);
+        }
+        function isNear(p, b) {
+            return p.x >= b.x - 1 && p.x < b.x + b.w + 1 && p.y >= b.y - 1 && p.y < b.y + b.h + 1;
+        }
+        function checkProximity() {
+            bubbleEl.style.display = 'none';
+            let actionText = isMobile ? "AKCE" : "E";
+            let b = MAPS[currentMapId].buildings.find(bu => isNear(playerPos, bu));
+            if (b && b.type === 'key') { showBubble(b.x + b.w/2, b.y, `${actionText}: ${b.desc}`); return; }
+            let tile = tiles[playerPos.y][playerPos.x];
+            if (tile.fieldId !== null) {
+                let f = MAPS[currentMapId].fields.find(fi => fi.id === tile.fieldId);
+                showBubble(playerPos.x + 0.5, playerPos.y, `${actionText}: Koupit (${f.price} Kč)`);
+            }
+        }
+        function startGrowth(crop, type = 'wheat', startTime = null) {
+            if(!crop || !crop.progressEl) return;
+            
+            if (crop.timerId) clearTimeout(crop.timerId);
+
+            let now = Date.now();
+            let isNew = startTime === null;
+            startTime = startTime || now;
+            
+            if (isNew) {
+                let existing = farmCrops.find(c => c.x === crop.x && c.y === crop.y);
+                if (existing) { existing.type = type; existing.plantTime = startTime; }
+                else { farmCrops.push({ x: crop.x, y: crop.y, type: type, plantTime: startTime }); }
+            }
+            
+            let saved = farmCrops.find(c => c.x === crop.x && c.y === crop.y);
+            
+            // Handle Dead State
+            if (saved && saved.dead) {
+                crop.ready = false;
+                crop.dead = true;
+                crop.el.className = 'tile soil dead';
+                crop.el.removeAttribute('data-type');
+                crop.progressEl.style.width = '0%';
+                return;
+            }
+
+            // Handle Withered State
+            if (saved && saved.withered) {
+                crop.ready = false;
+                crop.type = type;
+                crop.el.className = 'tile soil growing withered';
+                crop.el.removeAttribute('data-type');
+                crop.withered = true;
+                
+                let duration = Math.max(1000, 5000 - (SKILLS.growth.level - 1) * 800);
+                let elapsed = saved.witherTimestamp - startTime;
+                crop.progressEl.style.width = Math.min(100, (elapsed / duration) * 100) + '%';
+                return;
+            }
+
+            crop.ready = false; 
+            crop.type = type;
+            crop.el.className = 'tile soil seeded';
+            crop.el.removeAttribute('data-type');
+            
+            let duration = Math.max(1000, 5000 - (SKILLS.growth.level - 1) * 800);
+            let elapsed = now - startTime;
+            
+            // Weather effect
+            if (weather === 'rain') duration *= 0.8;
+
+            if (saved && saved.watered) crop.el.classList.add('watered');
+
+            let remaining = duration - elapsed;
+
+            crop.progressEl.style.transition = 'none';
+            
+            if (remaining <= 0) {
+                crop.progressEl.style.width = '100%';
+                finishGrowth(crop);
+            } else {
+                let progress = (elapsed / duration) * 100;
+                crop.progressEl.style.width = progress + '%';
+                if (elapsed > duration * 0.4) crop.el.className = 'tile soil growing';
+
+                crop.timerId = setTimeout(() => { 
+                    crop.progressEl.style.transition = `width ${remaining}ms linear`; 
+                    crop.progressEl.style.width = '100%'; 
+                    
+                    // Finish timeout
+                    crop.timerId = setTimeout(() => { finishGrowth(crop); }, remaining);
+                }, 50);
+
+                let timeToGrow = (duration * 0.4) - elapsed;
+                if (timeToGrow > 0) setTimeout(() => { if(!crop.ready) crop.el.className = 'tile soil growing'; }, timeToGrow);
+            }
+        }
+
+        function waterCrop(crop) {
+            let saved = farmCrops.find(c => c.x === crop.x && c.y === crop.y);
+            if(!saved || saved.watered) return;
+            
+            if (CANS[currentCanIndex].speed <= 0) {
+                showFloatingText("Potřebuješ konev!", "#f44336");
+                return;
+            }
+
+            if (saved.withered) {
+                // Revive logic
+                if (Math.random() < 0.3) { // 30% chance to die
+                    saved.withered = false;
+                    saved.dead = true;
+                    crop.withered = false;
+                    crop.dead = true;
+                    crop.el.className = 'tile soil dead';
+                    showFloatingText("Uhynulo!", "#5d4037");
+                    return;
+                }
+
+                saved.withered = false;
+                let pauseDuration = Date.now() - saved.witherTimestamp;
+                saved.plantTime += pauseDuration; // Shift start time
+                delete saved.witherTimestamp;
+                
+                crop.withered = false;
+                crop.el.classList.remove('withered');
+                showFloatingText("Zachráněno!", "#4caf50");
+                startGrowth(crop, saved.type, saved.plantTime);
+                return;
+            }
+            
+            if (saved.watered) return;
+            
+            let can = CANS[currentCanIndex];
+            saved.watered = true;
+            
+            let baseDuration = Math.max(1000, 5000 - (SKILLS.growth.level - 1) * 800);
+            let reduction = baseDuration * can.speed;
+            saved.plantTime -= reduction;
+            
+            showFloatingText("Zalito!", "#4fc3f7");
+            startGrowth(crop, saved.type, saved.plantTime);
+        }
+
+        function finishGrowth(crop) {
+            if (!document.body.contains(crop.el)) return;
+            crop.ready = true; 
+            crop.el.className = 'tile soil ready';
+            crop.el.setAttribute('data-type', crop.type);
+            if (playerPos.x === crop.x && playerPos.y === crop.y) harvest(crop);
+        }
+        function harvest(crop) {
+            let cap = BASKETS[currentBasketIndex].cap;
+            if (holding >= cap) { showFloatingText("Plno!", "#f44336"); return; }
+            
+            let amount = 1;
+            if (Math.random() < 0.3) amount += (HOES[currentHoeIndex].bonus - 1); 
+            if (Math.random() < (SKILLS.luck.level * 0.1)) amount *= 2;
+            
+            if (holding + amount > cap) amount = cap - holding;
+            if (amount <= 0) return;
+
+            inventory[crop.type] = (inventory[crop.type] || 0) + amount;
+            updateHolding();
+
+            const tool = document.getElementById('equippedTool');
+            tool.classList.remove('swinging'); void tool.offsetWidth; tool.classList.add('swinging');
+            showFloatingText(`+${amount}`, "#ffeb3b");
+            stats.totalHarvested += amount;
+            checkAchievements();
+            addXp(ITEMS[crop.type].xp * amount);
+            updateQuestProgress('harvest', crop.type, amount);
+            
+            farmCrops = farmCrops.filter(c => c.x !== crop.x || c.y !== crop.y);
+
+            // Reset crop to empty soil
+            crop.ready = false; crop.type = null;
+            crop.el.className = 'tile soil'; crop.el.removeAttribute('data-type');
+            crop.el.classList.remove('watered');
+            crop.progressEl.style.width = '0%';
+            updateUI(); 
+            // saveGameData(); // Odstraněno pro plynulost
+        }
+
+        function addXp(amount) {
+            xp += amount;
+            if (xp >= maxXp) {
+                xp -= maxXp;
+                level++;
+                maxXp = level * 100;
+                showFloatingText(`LEVEL UP! ${level}`, "#e040fb");
+            }
+            updateUI();
+        }
+        function sellCrops() {
+            // Sell from Inventory AND Silo
+            let totalValue = 0;
+            let soldSomething = false;
+            let soldCount = 0;
+
+            // Calc inventory value
+            for(let k in inventory) {
+                if(ITEMS[k] && ITEMS[k].type === 'crop') {
+                    totalValue += inventory[k] * (ITEMS[k].price + (SKILLS.trade.level - 1) * 2);
+                    soldCount += inventory[k];
+                    inventory[k] = 0;
+                    soldSomething = true;
+                }
+            }
+            // Calc silo value
+            for(let k in siloStorage) {
+                if(ITEMS[k] && ITEMS[k].type === 'crop') {
+                    totalValue += siloStorage[k] * (ITEMS[k].price + (SKILLS.trade.level - 1) * 2);
+                    soldCount += siloStorage[k];
+                    siloStorage[k] = 0;
+                    soldSomething = true;
+                }
+            }
+
+            if (soldSomething && !isTruckBusy) {
+                isTruckBusy = true; truckEl.dom.classList.add('driving-away');
+                showFloatingText("Prodávám...", "#fff");
+                updateHolding();
+                setTimeout(() => {
+                    money += totalValue;
+                    showFloatingText(`+${totalValue} Kč`, "#4dd0e1");
+                    stats.totalMoney += totalValue;
+                    stats.totalSold += soldCount;
+                    checkAchievements();
+                    updateQuestProgress('earn', 'money', totalValue);
+                    updateUI(); saveGameData();
+                    setTimeout(() => { truckEl.dom.classList.remove('driving-away'); isTruckBusy = false; }, 1000);
+                }, 2000);
+            }
+        }
+        function buyField(id) {
+            let f = MAPS[currentMapId].fields.find(field => field.id === id);
+            if (money >= f.price) {
+                money -= f.price; f.unlocked = true;
+                showFloatingText("Koupeno!", "#00e676");
+                loadMap(currentMapId); updateUI(); saveGameData();
+            } else showFloatingText("Chybí peníze!", "#f44336");
+        }
+
+        // --- SHOP UI ---
+        function openItemShop(type) {
+            let title = type === 'hoe' ? 'Kovář' : (type === 'can' ? 'Konve' : (type === 'shovel' ? 'Lopaty' : 'Batohy'));
+            let items = type === 'hoe' ? HOES : (type === 'can' ? CANS : (type === 'shovel' ? SHOVELS : BASKETS));
+            let currentIndex = type === 'hoe' ? currentHoeIndex : (type === 'can' ? currentCanIndex : (type === 'shovel' ? currentShovelIndex : currentBasketIndex));
+            
+            document.getElementById('shopTitle').innerText = title;
+            let switchBtn = '';
+            if (type === 'basket') switchBtn = `<button class="menu-btn" style="padding:5px; margin-bottom:10px;" onclick="openItemShop('can')">➡ Přejít na Konve</button>`;
+            if (type === 'can') switchBtn = `<button class="menu-btn" style="padding:5px; margin-bottom:10px;" onclick="openItemShop('shovel')">➡ Přejít na Lopaty</button>`;
+            if (type === 'shovel') switchBtn = `<button class="menu-btn" style="padding:5px; margin-bottom:10px;" onclick="openItemShop('basket')">➡ Přejít na Batohy</button>`;
+
+            let html = `${switchBtn}<table class="shop-table"><tr><th>Předmět</th><th>Efekt</th><th>Cena</th><th></th></tr>`;
+            items.forEach((item, index) => {
+                let btn = index <= currentIndex ? `<button class="btn-owned">Máš</button>` : `<button class="btn-buy" onclick="buyItem('${type}', ${index})">Koupit</button>`;
+                if (index > currentIndex + 1) btn = `<button class="btn-buy" disabled>🔒</button>`;
+                let effect = type === 'hoe' ? `+${item.bonus-1} drop` : (type === 'can' ? `+${item.speed*100}% rychlost` : (type === 'shovel' ? `Síla ${item.power}` : `Limit ${item.cap}`));
+                if (type === 'shovel' && item.power === 0) effect = "Nic";
+                if (type === 'can' && item.speed === 0) effect = "Nic";
+                html += `<tr><td><b>${item.name}</b></td><td>${effect}</td><td style="color:#ffd54f">${item.price}</td><td>${btn}</td></tr>`;
+            });
+            html += `</table>`;
+            document.getElementById('shopContent').innerHTML = html;
+            modalEl.style.display = 'flex';
+        }
+        function buyItem(type, index) {
+            let items = type === 'hoe' ? HOES : (type === 'can' ? CANS : (type === 'shovel' ? SHOVELS : BASKETS));
+            let item = items[index];
+            if (money >= item.price) {
+                money -= item.price;
+                if (type === 'hoe') { currentHoeIndex = index; document.getElementById('equippedTool').innerText = item.icon; } 
+                else if (type === 'can') { currentCanIndex = index; }
+                else if (type === 'shovel') { currentShovelIndex = index; }
+                else { currentBasketIndex = index; }
+                updateUI(); openItemShop(type); saveGameData();
+            } else alert("Nedostatek peněz!");
+        }
+        function openSkillShop() {
+            document.getElementById('shopTitle').innerText = "Schopnosti";
+            let html = `<table class="shop-table"><tr><th>Skill</th><th>Lvl</th><th>Cena</th><th></th></tr>`;
+            for (let k in SKILLS) {
+                let s = SKILLS[k];
+                let cost = Math.floor(s.baseCost * Math.pow(1.5, s.level));
+                let btn = s.level >= s.maxLevel ? `<button class="btn-owned">MAX</button>` : `<button class="btn-buy" onclick="buySkill('${k}')">UP</button>`;
+                html += `<tr><td><b>${s.name}</b></td><td>${s.level}/${s.maxLevel}</td><td style="color:#ffd54f">${s.level>=s.maxLevel?'-':cost}</td><td>${btn}</td></tr>`;
+            }
+            html += `</table>`;
+            document.getElementById('shopContent').innerHTML = html;
+            modalEl.style.display = 'flex';
+        }
+        function buySkill(k) {
+            let s = SKILLS[k];
+            let cost = Math.floor(s.baseCost * Math.pow(1.5, s.level));
+            if (money >= cost && s.level < s.maxLevel) {
+                money -= cost; s.level++;
+                if (s.effect) s.effect();
+                updateUI(); openSkillShop(); saveGameData();
+            } else alert("Nedostatek peněz!");
+        }
+        
+        function openSeedShop() {
+            document.getElementById('shopTitle').innerText = "Semena";
+            let html = `<table class="shop-table"><tr><th>Semeno</th><th>Cena</th><th></th></tr>`;
+            
+            // Seřadit semena podle levelu
+            let seeds = Object.keys(ITEMS).filter(k => ITEMS[k].type === 'seed').sort((a,b) => ITEMS[a].reqLevel - ITEMS[b].reqLevel);
+
+            seeds.forEach(key => {
+                let item = ITEMS[key];
+                let locked = level < item.reqLevel;
+                let btn = locked ? `<span style="color:#e57373; font-size:0.8em;">Lvl ${item.reqLevel}</span>` : `<button class="btn-buy" onclick="buySeed('${key}')">Koupit</button>`;
+                html += `<tr><td><b>${item.name}</b></td><td style="color:#ffd54f">${item.price}</td><td>${btn}</td></tr>`;
+            });
+            html += `</table>`;
+            document.getElementById('shopContent').innerHTML = html;
+            modalEl.style.display = 'flex';
+        }
+
+        function buySeed(key) {
+            let item = ITEMS[key];
+            let cap = BASKETS[currentBasketIndex].cap;
+            if (holding >= cap) { alert("Plný košík!"); return; }
+            if (money >= item.price) {
+                money -= item.price;
+                inventory[key] = (inventory[key] || 0) + 1;
+                updateHolding(); updateUI(); saveGameData();
+            } else alert("Nedostatek peněz!");
+        }
+
+        function openStorage(type) {
+            // Logic: Move items from basket to storage
+            let moved = 0;
+            if (type === 'silo') {
+                let siloCount = getSiloCount();
+                for(let k in inventory) {
+                    if(ITEMS[k] && ITEMS[k].type === 'crop') {
+                        let amount = inventory[k];
+                        let space = 50 - siloCount;
+                        if (space <= 0) break;
+                        let toMove = Math.min(amount, space);
+                        
+                        siloStorage[k] = (siloStorage[k] || 0) + toMove;
+                        inventory[k] -= toMove;
+                        if(inventory[k] === 0) delete inventory[k];
+                        
+                        moved += toMove;
+                        siloCount += toMove;
+                    }
+                }
+                if(moved > 0) showFloatingText(`Uloženo ${moved} ks`, "#fff");
+                else showFloatingText(siloCount >= 50 ? "Silo je plné!" : "Nic k uložení", "#aaa");
+            } else if (type === 'barn') {
+                for(let k in inventory) {
+                    if(ITEMS[k] && ITEMS[k].type === 'seed') {
+                        barnStorage[k] = (barnStorage[k] || 0) + inventory[k];
+                        moved += inventory[k];
+                        delete inventory[k];
+                    }
+                }
+                if(moved > 0) showFloatingText(`Uloženo ${moved} semen`, "#fff");
+                else showFloatingText("Žádná semena", "#aaa");
+            }
+            updateHolding(); updateUI(); saveGameData();
+            
+            // Show storage content in modal
+            document.getElementById('shopTitle').innerText = type === 'silo' ? `Silo (${getSiloCount()}/50)` : "Stodola";
+            let store = type === 'silo' ? siloStorage : barnStorage;
+            let html = `<table class="shop-table"><tr><th>Předmět</th><th>Počet</th><th>Akce</th></tr>`;
+            for(let k in store) {
+                if(store[k] > 0) {
+                    html += `<tr><td>${ITEMS[k].name}</td><td>${store[k]}</td><td><button class="btn-buy" onclick="retrieveItem('${type}', '${k}')">Vzít</button></td></tr>`;
+                }
+            }
+            if(Object.keys(store).length === 0) html += `<tr><td colspan="3">Prázdno</td></tr>`;
+            html += `</table>`;
+            document.getElementById('shopContent').innerHTML = html;
+            modalEl.style.display = 'flex';
+        }
+
+        function retrieveItem(storeType, key) {
+            let store = storeType === 'silo' ? siloStorage : barnStorage;
+            let cap = BASKETS[currentBasketIndex].cap;
+            if (holding >= cap) { alert("Plný košík!"); return; }
+            
+            if (store[key] > 0) {
+                store[key]--;
+                inventory[key] = (inventory[key] || 0) + 1;
+                if(store[key] === 0) delete store[key];
+                updateHolding(); updateUI(); openStorage(storeType); saveGameData();
+            }
+        }
+
+        function updateHolding() {
+            holding = Object.values(inventory).reduce((a,b)=>a+b,0);
+        }
+        function getSiloCount() { return Object.values(siloStorage).reduce((a,b)=>a+b,0); }
+
+        function closeShop() { modalEl.style.display = 'none'; }
+        function showBubble(tx, ty, text) {
+            bubbleEl.style.display = 'block';
+            bubbleEl.style.left = (tx * TILE_SIZE) + 'px';
+            bubbleEl.style.top = (ty * TILE_SIZE - 40) + 'px';
+            bubbleEl.innerText = text;
+        }
+        function showFloatingText(text, color) {
+            let el = document.createElement('div'); el.className = 'floating-text'; el.innerText = text; el.style.color = color;
+            el.style.left = (playerPos.x * TILE_SIZE) + 'px'; el.style.top = (playerPos.y * TILE_SIZE - 20) + 'px';
+            containerEl.appendChild(el); setTimeout(() => el.remove(), 1000);
+        }
+        function updateUI() {
+            document.getElementById('moneyDisplay').innerText = money;
+            let shopMoney = document.getElementById('shopMoneyDisplay');
+            if(shopMoney) shopMoney.innerText = money + " Kč";
+            let cap = BASKETS[currentBasketIndex].cap;
+            document.getElementById('basketText').innerText = `${holding}/${cap}`;
+            document.getElementById('basketBar').style.width = ((holding/cap)*100) + '%';
+            document.getElementById('questNotif').style.display = activeQuests.some(q => q.current >= q.amount) ? 'inline-block' : 'none';
+            
+            document.getElementById('levelDisplay').innerText = level;
+            document.getElementById('xpBar').style.width = ((xp/maxXp)*100) + '%';
+        }
+
+        // --- MENU FUNCTIONS ---
+        function togglePause() {
+            if (modalEl.style.display === 'flex') return;
+            isPaused = !isPaused;
+            escMenuEl.style.display = isPaused ? 'flex' : 'none';
+        }
+        
+        function resumeGame() {
+            isPaused = false;
+            escMenuEl.style.display = 'none';
+        }
+
+        function openSettings() {
+            if (gameStarted) escMenuEl.style.display = 'none';
+            else document.getElementById('mainMenu').style.display = 'none';
+            settingsMenuEl.style.display = 'flex';
+            document.getElementById('btnMusicToggle').innerText = bgMusic.paused ? "Hrát" : "Stop";
+            document.getElementById('speedValue').innerText = bgMusic.playbackRate.toFixed(2) + 'x';
+        }
+
+        function closeSettings() {
+            settingsMenuEl.style.display = 'none';
+            if (gameStarted) escMenuEl.style.display = 'flex';
+            else document.getElementById('mainMenu').style.display = 'flex';
+        }
+
+        function updateVolume(val) {
+            bgMusic.volume = val / 100;
+            document.getElementById('volValue').innerText = val + '%';
+        }
+
+        function toggleMusic() {
+            if (bgMusic.paused) {
+                bgMusic.play();
+                document.getElementById('btnMusicToggle').innerText = "Stop";
+            } else {
+                bgMusic.pause();
+                document.getElementById('btnMusicToggle').innerText = "Hrát";
+            }
+        }
+
+        function changeSpeed(delta) {
+            let newRate = Math.max(0.25, Math.min(3.0, bgMusic.playbackRate + delta));
+            bgMusic.playbackRate = newRate;
+            document.getElementById('speedValue').innerText = newRate.toFixed(2) + 'x';
+        }
+
+        function saveAndExit() {
+            saveGameData();
+            escMenuEl.style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'flex';
+            gameStarted = false;
+            isPaused = true;
+        }
+
+        // --- QUEST SYSTEM ---
+        function checkQuestsInit() {
+            while(activeQuests.length < 3) {
+                activeQuests.push(generateNewQuest());
+            }
+            updateUI();
+        }
+
+        function generateNewQuest() {
+            const types = ['harvest', 'earn'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            let q = { id: Date.now() + Math.random(), type: type, current: 0 };
+            
+            if (type === 'harvest') {
+                const crops = CROP_DEFS.filter(c => c.level <= level).map(c => c.id); // Jen odemčené
+                q.target = crops[Math.floor(Math.random() * crops.length)];
+                q.amount = Math.floor(Math.random() * 15) + 5; // 5-20
+                let cropName = ITEMS[q.target].name;
+                q.desc = `Skliď ${q.amount}x ${cropName}`;
+                q.reward = Math.floor(q.amount * ITEMS[q.target].price * 0.5) + 50;
+                q.xpReward = Math.floor(q.amount * 3) + 20;
+            } else if (type === 'earn') {
+                q.target = 'money';
+                q.amount = Math.floor(Math.random() * 500) + 100; // 100-600
+                q.desc = `Vydělej ${q.amount} Kč prodejem`;
+                q.reward = Math.floor(q.amount * 0.2) + 20;
+                q.xpReward = Math.floor(q.amount * 0.1) + 15;
+            }
+            return q;
+        }
+
+        function updateQuestProgress(type, target, amount) {
+            let changed = false;
+            activeQuests.forEach(q => {
+                if (q.type === type && q.target === target && q.current < q.amount) {
+                    q.current += amount;
+                    if (q.current > q.amount) q.current = q.amount;
+                    changed = true;
+                    if (q.current >= q.amount) showFloatingText("Úkol splněn!", "#76ff03");
+                }
+            });
+            if (changed) { saveGameData(); updateUI(); }
+        }
+
+        function openQuestLog() {
+            let html = '';
+            activeQuests.forEach((q, i) => {
+                let xpR = q.xpReward || 25;
+                let pct = Math.min(100, (q.current / q.amount) * 100);
+                let btn = pct >= 100 ? `<button class="btn-claim" onclick="claimQuest(${i})">Vybrat<br>${q.reward} Kč<br><span style="font-size:0.8em">+${xpR} XP</span></button>` : `<span style="color:#aaa; font-size:0.8em;">Odměna: ${q.reward} Kč<br>+${xpR} XP</span>`;
+                html += `<div class="quest-item">
+                    <div class="quest-info">
+                        <div style="font-weight:bold;">${q.desc}</div>
+                        <div class="quest-progress-bg"><div class="quest-progress-fill" style="width:${pct}%"></div></div>
+                        <div style="font-size:0.8em; color:#ccc; margin-top:2px;">${Math.floor(q.current)} / ${q.amount}</div>
+                    </div>
+                    <div style="margin-left:10px; text-align:right;">${btn}</div>
+                </div>`;
+            });
+            document.getElementById('questContent').innerHTML = html;
+            document.getElementById('questModal').style.display = 'flex';
+        }
+        function closeQuestLog() { document.getElementById('questModal').style.display = 'none'; }
+        function claimQuest(index) {
+            let q = activeQuests[index];
+            if (q.current >= q.amount) {
+                money += q.reward;
+                let xpR = q.xpReward || 25;
+                addXp(xpR);
+                showFloatingText(`+${q.reward} Kč`, "#ffeb3b");
+                setTimeout(() => showFloatingText(`+${xpR} XP`, "#e040fb"), 300);
+                activeQuests.splice(index, 1);
+                activeQuests.push(generateNewQuest());
+                saveGameData(); updateUI(); openQuestLog();
+            }
+        }
+
+        // --- ACHIEVEMENT SYSTEM ---
+        function checkAchievements() {
+            let changed = false;
+            ACHIEVEMENTS.forEach(ach => {
+                if (completedAchievementIds.includes(ach.id)) return;
+                
+                let current = 0;
+                if (ach.type === 'money') current = stats.totalMoney;
+                if (ach.type === 'sold') current = stats.totalSold;
+                if (ach.type === 'harvest') current = stats.totalHarvested;
+
+                if (current >= ach.target) {
+                    completedAchievementIds.push(ach.id);
+                    money += ach.reward;
+                    showFloatingText(`🏆 ${ach.name}`, "#ffd700");
+                    setTimeout(() => showFloatingText(`+${ach.reward} Kč`, "#ffeb3b"), 500);
+                    changed = true;
+                }
+            });
+            if (changed) { saveGameData(); updateUI(); }
+        }
+
+        function openAchievements() {
+            if (gameStarted) escMenuEl.style.display = 'none';
+            else document.getElementById('mainMenu').style.display = 'none';
+            let html = '';
+            ACHIEVEMENTS.forEach(ach => {
+                let isDone = completedAchievementIds.includes(ach.id);
+                let current = 0;
+                if (ach.type === 'money') current = stats.totalMoney;
+                if (ach.type === 'sold') current = stats.totalSold;
+                if (ach.type === 'harvest') current = stats.totalHarvested;
+                let pct = Math.min(100, (current / ach.target) * 100);
+                
+                html += `<div class="achievement-item ${isDone ? 'achievement-done' : ''}">
+                    <div class="achievement-header"><span>${ach.name}</span> <span>${isDone ? '✅' : Math.floor(pct)+'%'}</span></div>
+                    <div class="achievement-desc">${ach.desc}</div>
+                    <div class="achievement-reward">Odměna: ${ach.reward} Kč</div>
+                    <div class="quest-progress-bg" style="margin-top:5px;"><div class="quest-progress-fill" style="width:${pct}%; background:${isDone?'#fff':'#ffb74d'}"></div></div>
+                </div>`;
+            });
+            document.getElementById('achievementsContent').innerHTML = html;
+            document.getElementById('achievementsModal').style.display = 'flex';
+        }
+        function closeAchievements() { 
+            document.getElementById('achievementsModal').style.display = 'none';
+            if (gameStarted) escMenuEl.style.display = 'flex';
+            else document.getElementById('mainMenu').style.display = 'flex';
+        }
+
+        // --- WEATHER SYSTEM ---
+        function updateWeather() {
+            if (Math.random() < 0.3) { // 30% chance to change
+                weather = weather === 'sun' ? 'rain' : 'sun';
+                const rainEl = document.getElementById('rainLayer');
+                if (weather === 'rain') {
+                    rainEl.style.display = 'block';
+                    showFloatingText("Začalo pršet!", "#4fc3f7");
+                } else {
+                    rainEl.style.display = 'none';
+                    showFloatingText("Vyšlo slunce!", "#ffeb3b");
+                }
+            }
+            
+            // Update Temperature
+            if (weather === 'sun') {
+                temperature = Math.floor(Math.random() * (40 - 25 + 1)) + 25; // 25-40
+            } else {
+                temperature = Math.floor(Math.random() * (25 - 15 + 1)) + 15; // 15-25
+            }
+            document.getElementById('tempDisplay').innerText = temperature + '°C';
+            if (temperature > 32) showFloatingText("Horko! Zalévej!", "#ff5722");
+        }
+        
+        function checkWithering() {
+            if (temperature <= 32) return;
+            farmCrops.forEach(saved => {
+                if (saved.ready || saved.watered || saved.withered || saved.dead) return;
+                
+                if (Math.random() < 0.1) { // 10% chance
+                    saved.withered = true;
+                    saved.witherTimestamp = Date.now();
+                    
+                    if (currentMapId === 'farm') {
+                        let tile = tiles[saved.y][saved.x];
+                        let crop = tile ? tile.crop : null;
+                        if (crop) {
+                            crop.withered = true;
+                            crop.el.classList.add('withered');
+                            if (crop.timerId) clearTimeout(crop.timerId);
+                            crop.progressEl.style.transition = 'none';
+                            showFloatingText("Uschlo!", "#795548");
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- PWA REGISTRATION ---
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js')
+                .then(() => console.log('Service Worker Registered'));
+        }
+
+        // Spuštění s odchytáváním chyb
+        try {
+            init();
+        } catch (e) {
+            alert("Chyba při spouštění hry: " + e.message + "\n\nZkuste kliknout na tlačítko 'RESET DAT' v pravém horním rohu.");
+            console.error(e);
+        }
+    </script>
+</body>
+</html>
