@@ -18,11 +18,11 @@
 
         * { box-sizing: border-box; touch-action: none; /* Zákaz zoomování dotykem */ }
 
-        body {
+        html, body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #121212;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
-            height: 100vh; margin: 0; overflow: hidden; color: white; user-select: none;
+            height: 100%; width: 100%; margin: 0; padding: 0; overflow: hidden; color: white; user-select: none;
         }
 
         /* --- HUD --- */
@@ -53,7 +53,8 @@
         }
 
         .game-viewport {
-            position: relative; 
+            position: absolute;
+            top: 0; left: 0;
             border: 4px solid #37474f; 
             border-radius: 4px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.8);
@@ -62,7 +63,7 @@
             transition: opacity 0.3s;
             box-sizing: content-box;
             /* Default scale will be handled by JS */
-            transform-origin: center center;
+            transform-origin: 0 0;
         }
 
         .world-grid { 
@@ -191,11 +192,50 @@
             color: rgba(255,255,255,0.7); font-size: 0.9em; pointer-events: none; z-index: 100;
             display: none;
         }
+
+        /* --- NIGHT OVERLAY --- */
+        .night-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 10, 40, 0.7); pointer-events: none; z-index: 80;
+            opacity: 0; transition: opacity 2s;
+        }
+
+        /* --- SAVE SLOTS --- */
+        .slot-card {
+            background: #263238; border: 2px solid #37474f; border-radius: 10px; padding: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: transform 0.1s;
+        }
+        .slot-card:active { transform: scale(0.98); }
+        .slot-info { display: flex; flex-direction: column; gap: 5px; text-align: left; }
+        .slot-name { font-weight: bold; font-size: 1.2em; color: var(--highlight); }
+        .slot-details { font-size: 0.85em; color: #b0bec5; }
+        .slot-actions { display: flex; gap: 10px; }
+
+        /* --- DAILY REWARDS --- */
+        .daily-day {
+            background: #333; border: 2px solid #555; border-radius: 5px;
+            width: 60px; height: 80px; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; opacity: 0.7; position: relative;
+        }
+        .daily-day.active { border-color: #ffd700; background: #4e342e; opacity: 1; transform: scale(1.1); box-shadow: 0 0 15px rgba(255, 215, 0, 0.3); z-index: 10; }
+        .daily-day.claimed { border-color: #76ff03; opacity: 0.5; }
+        .daily-day-num { font-size: 0.8em; color: #aaa; margin-bottom: 5px; }
+        .daily-day-reward { font-weight: bold; font-size: 0.9em; color: #fff; }
+
+        /* --- TRANSITION OVERLAY --- */
+        .transition-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #121212; z-index: 5000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.5s;
+        }
+        .transition-overlay.active { opacity: 1; pointer-events: auto; }
+        #transitionText { font-size: 3em; font-weight: bold; color: white; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 5px 10px black; }
+        #transitionArrow { font-size: 4em; color: var(--highlight); text-shadow: 0 0 10px var(--highlight); }
     </style>
 </head>
 <body>
-
-    <button class="reset-btn" onclick="resetGame()">RESET DAT</button>
 
     <div class="hud-panel">
         <div class="stat-box">
@@ -206,7 +246,13 @@
             <div class="xp-bar-bg"><div class="xp-bar-fill" id="xpBar"></div></div>
         </div>
         <div class="stat-box">
-            <span onclick="openQuestLog()" style="cursor:pointer; display:flex; align-items:center; gap:5px;">📜 <span id="questNotif" style="display:none; width:8px; height:8px; background:red; border-radius:50%;"></span></span>
+            <span onclick="openQuestLog()" style="cursor:pointer; display:flex; align-items:center; gap:5px; margin-right:15px;">📜 <span id="questNotif" style="display:none; width:8px; height:8px; background:red; border-radius:50%;"></span></span>
+            <span onclick="openInventory()" style="cursor:pointer;" title="Inventář (R)">🎒</span>
+            <span onclick="togglePause()" style="cursor:pointer; margin-left:15px;" title="Menu">⚙️</span>
+        </div>
+        <div class="stat-box">
+            <span id="dayNightIcon">☀️</span> 
+            <span id="dayNightTimer" style="font-family:monospace; font-weight:bold;">06:00</span>
         </div>
         <div class="stat-box">
             <span>🌡️</span> <span id="tempDisplay" style="font-weight:bold;">20°C</span>
@@ -223,6 +269,7 @@
     <div class="game-wrapper">
         <div class="game-viewport" id="gameContainer">
             <div class="world-grid" id="worldGrid"></div>
+            <div id="nightOverlay" class="night-overlay"></div>
             <div id="rainLayer" class="rain-layer"></div>
             <div id="trafficLayer"></div>
             <div id="player">
@@ -233,6 +280,11 @@
             <div class="zone-indicator" style="left: 10px; display:none;" id="arrowLeft">⬅ Město</div>
             <div class="zone-indicator" style="right: 10px; display:none;" id="arrowRight">Farma ➡</div>
         </div>
+    </div>
+
+    <div id="transitionOverlay" class="transition-overlay">
+        <div id="transitionText"></div>
+        <div id="transitionArrow"></div>
     </div>
 
     <div id="mobileControls">
@@ -248,7 +300,7 @@
     </div>
 
     <div class="pc-controls-hint" id="pcControls">
-        Pohyb: <b>WSAD</b> | Akce: <b>E</b> | Menu: <b>ESC</b> | Nastavení: <b>P</b>
+        Pohyb: <b>WSAD</b> | Akce: <b>E</b> | Inventář: <b>R</b> | Menu: <b>ESC</b> | Nastavení: <b>P</b>
     </div>
 
     <div class="modal-overlay" id="shopModal" onclick="if(event.target === this) closeShop()">
@@ -274,6 +326,16 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="inventoryModal" onclick="if(event.target === this) closeInventory()">
+        <div class="shop-window">
+            <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h2 style="margin:0;">Inventář</h2>
+                <button class="btn-close" onclick="closeInventory()">X</button>
+            </div>
+            <div id="inventoryContent" style="max-height: 60vh; overflow-y: auto;"></div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="achievementsModal" onclick="if(event.target === this) closeAchievements()">
         <div class="shop-window">
             <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -284,13 +346,69 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="saveSlotsMenu" style="display: none; flex-direction: column; background: #121212; z-index: 3100;">
+        <h1 style="color: #7cb342; margin-bottom: 20px; text-shadow: 2px 2px #000;">Výběr světa</h1>
+        <div id="slotsContainer" style="display: flex; flex-direction: column; gap: 15px; width: 90%; max-width: 500px;"></div>
+        <button class="menu-btn" style="width: 200px; margin-top: 30px;" onclick="closeSaveSlots()">Zpět do menu</button>
+    </div>
+
+    <div class="modal-overlay" id="newGameModal" style="display: none; z-index: 3200;">
+        <div class="shop-window" style="text-align: center;">
+            <h2 style="margin-top: 0;">Nový svět</h2>
+            <input type="text" id="newSaveName" placeholder="Název světa" maxlength="15" style="padding: 10px; width: 80%; margin-bottom: 20px; background: #333; color: white; border: 1px solid #555; border-radius: 5px; font-size: 1.1em;">
+            
+            <div style="margin-bottom: 20px; text-align: left; background: #222; padding: 10px; border-radius: 5px; border: 1px solid #444;">
+                <label style="display:block; margin-bottom:10px; color:#aaa; font-size: 0.9em;">Zkušenost:</label>
+                <div style="display:flex; justify-content: space-around;">
+                    <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="radio" name="difficulty" value="beginner" checked> Začátečník</label>
+                    <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="radio" name="difficulty" value="advanced"> Pokročilý</label>
+                </div>
+            </div>
+
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button class="menu-btn" onclick="confirmNewGame()">Vytvořit</button>
+                <button class="menu-btn" style="background: #c62828;" onclick="closeNewGameModal()">Zrušit</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="dailyRewardModal" style="z-index: 3500;">
+        <div class="shop-window" style="text-align: center;">
+            <h2 style="color: #ffd700; text-shadow: 0 0 10px orange; margin-top: 0;">Denní Odměna</h2>
+            <div style="margin-bottom: 15px; color: #aaa; font-size: 0.9em;">Přihlas se každý den pro lepší odměny!</div>
+            <div id="dailyRewardGrid" style="display: flex; gap: 5px; justify-content: center; margin-bottom: 20px; flex-wrap: wrap;"></div>
+            <h3 id="dailyRewardValue" style="color: #fff; margin: 10px 0;"></h3>
+            <button class="menu-btn" style="background: #ffb74d; color: black; font-weight: bold;" onclick="claimDailyReward()">Vybrat odměnu</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="statsModal">
+        <div class="shop-window">
+            <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h2 style="margin:0;">Statistiky</h2>
+                <button class="btn-close" onclick="closeStats()">X</button>
+            </div>
+            <div id="statsContent"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="tutorialModal" style="z-index: 4000;">
+        <div class="shop-window" style="text-align: center; max-width: 400px;">
+            <h2 id="tutTitle" style="color: var(--highlight); margin-top: 0;"></h2>
+            <p id="tutText" style="font-size: 1.1em; line-height: 1.5; color: #ddd;"></p>
+            <div style="margin-top: 20px;">
+                <button class="menu-btn" onclick="nextTutorialStep()">Pokračovat</button>
+            </div>
+        </div>
+    </div>
+
     <!-- MAIN MENU -->
     <div class="modal-overlay" id="mainMenu" style="display: flex; flex-direction: column; background: #121212; z-index: 3000;">
         <h1 style="font-size: 3em; color: #7cb342; text-shadow: 2px 2px #000; margin-bottom: 10px;">FarmCraft</h1>
-        <h3 style="color: #aaa; margin-top: 0; margin-bottom: 40px;">Mobile Edition</h3>
+        <h3 id="versionText" style="color: #aaa; margin-top: 0; margin-bottom: 40px;">Mobile Edition</h3>
         <div style="width: 300px;">
-            <button class="menu-btn" style="padding: 20px; font-size: 1.2em; background: #2e7d32; border-color: #4caf50;" onclick="startSingleplayer()">Singleplayer</button>
-            <button class="menu-btn" onclick="openAchievements()">Achievementy</button>
+            <button class="menu-btn" style="padding: 20px; font-size: 1.2em; background: #2e7d32; border-color: #4caf50;" onclick="openSaveSlots()">Hrát teď</button>
+            <button class="menu-btn" onclick="startTutorial()">Tutoriál</button>
             <button class="menu-btn" onclick="openSettings()">Nastavení</button>
         </div>
     </div>
@@ -299,12 +417,19 @@
     <audio id="bgMusic" loop>
         <source src="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg">
     </audio>
+    <audio id="questSound">
+        <source src="https://cdn.pixabay.com/audio/2022/03/24/audio_7890d36638.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="buySound">
+        <source src="https://cdn.pixabay.com/audio/2022/03/25/audio_c8c8a73467.mp3" type="audio/mpeg">
+    </audio>
 
     <div class="modal-overlay" id="escMenu">
         <div class="shop-window" style="text-align: center;">
             <h2 style="margin-top:0;">Pauza</h2>
             <button class="menu-btn" onclick="resumeGame()">Pokračovat</button>
-            <button class="menu-btn" onclick="openAchievements()">Achievementy</button>
+            <button class="menu-btn" onclick="toggleFullscreen()">Fullscreen</button>
+            <button class="menu-btn" onclick="openGameplaySettingsFromPause()">Herní nastavení</button>
             <button class="menu-btn" onclick="openSettings()">Nastavení</button>
             <button class="menu-btn" onclick="saveAndExit()">Uložit a Ukončit</button>
         </div>
@@ -318,6 +443,16 @@
                 <input type="range" id="volSlider" min="0" max="100" value="50" oninput="updateVolume(this.value)">
             </div>
             <div class="slider-container">
+                <label>Výběr hudby:</label>
+                <select id="musicSelect" class="menu-btn" onchange="changeTrack(this.value)" style="margin-top:5px; padding: 5px;">
+                    <option value="0">Relaxační (Default)</option>
+                    <option value="1">Venkovská kytara</option>
+                    <option value="2">Veselá farma</option>
+                    <option value="3">Klidné piano</option>
+                    <option value="4">Energie</option>
+                </select>
+            </div>
+            <div class="slider-container">
                 <label>Přehrávání:</label>
                 <button class="menu-btn" id="btnMusicToggle" onclick="toggleMusic()">Stop</button>
                 <div style="display:flex; gap:10px;">
@@ -326,7 +461,20 @@
                 </div>
                 <small>Rychlost: <span id="speedValue">1.00x</span></small>
             </div>
+            <button class="menu-btn" id="btnAutoFs" onclick="toggleAutoFullscreen()">Auto Fullscreen: Vypnuto</button>
             <button class="menu-btn" onclick="closeSettings()">Zpět</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="gameplaySettings">
+        <div class="shop-window" style="text-align: center;">
+            <h2 style="margin-top:0;">Herní nastavení</h2>
+            <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; openInventory()">Inventář</button>
+            <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; openQuestLog()">Úkoly</button>
+            <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; openAchievements()">Achievementy</button>
+            <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; startTutorial()">Tutoriál</button>
+            <button class="menu-btn" onclick="openStats()">Statistiky</button>
+            <button class="menu-btn" onclick="closeGameplaySettings()">Zpět</button>
         </div>
     </div>
 
@@ -340,7 +488,7 @@
         let xp = 0;
         let level = 1;
         let maxXp = 100;
-        let stats = { totalMoney: 0, totalSold: 0, totalHarvested: 0 };
+        let stats = { totalMoney: 0, totalSold: 0, totalHarvested: 0, totalSteps: 0, totalPlayTime: 0 };
         let completedAchievementIds = [];
         let holding = 0;
         let inventory = {}; // { itemKey: count }
@@ -359,11 +507,35 @@
         let isPaused = false;
         let gameStarted = false;
         let isMobile = false;
-        let musicStarted = false;
+        let shouldPlayMusic = true;
+        let currentSaveSlot = null;
+        let currentDifficulty = 'beginner';
+        let tutorialSeen = false;
+        let dailyLogin = { lastClaim: 0, streak: 0 };
+        let gameplaySource = 'settings';
+        let autoFullscreen = false;
         
+        const MUSIC_TRACKS = [
+            "https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3",
+            "https://cdn.pixabay.com/audio/2022/04/27/audio_67bcf729cf.mp3", 
+            "https://cdn.pixabay.com/audio/2021/11/01/audio_00fa5593f3.mp3",
+            "https://cdn.pixabay.com/audio/2022/03/23/audio_07b2a04be3.mp3",
+            "https://cdn.pixabay.com/audio/2022/11/22/audio_febc508520.mp3"
+        ];
+        let currentTrackIndex = 0;
+
         let isMoving = false;
         let isTruckBusy = false;
         let moveSpeed = 250; 
+        
+        let shopStock = {};
+        let nextShopResetTime = 0;
+        let shopTimerInterval = null;
+
+        const DAY_DURATION = 6 * 60 * 1000; // 6 min
+        const NIGHT_DURATION = 4 * 60 * 1000; // 4 min
+        let cycleStartTime = Date.now();
+        let lastTime = Date.now();
         
         // Objekty pro data (aby se daly uložit)
         const CROP_DEFS = [
@@ -470,7 +642,7 @@
                     { id: 'truck', x: 22, y: 7, w: 3, h: 2, icon: '🚚', label: 'Prodej', type: 'auto', action: sellCrops },
                     { id: 'barn', x: 1, y: 0, w: 3, h: 2, icon: '🛖', label: 'Stodola', type: 'key', action: () => openStorage('barn'), desc: "Sklad semen" },
                     { id: 'silo', x: 5, y: 0, w: 2, h: 2, icon: '🏭', label: 'Silo', type: 'key', action: () => openStorage('silo'), desc: "Sklad plodin" },
-                    { id: 'house', x: 20, y: 0, w: 3, h: 2, icon: '🏡', label: 'Dům', type: 'decor' }
+                    { id: 'house', x: 19, y: 5, w: 3, h: 2, icon: '🏡', label: 'Dům', type: 'key', action: trySleep, desc: "Spát (jen v noci)" }
                 ],
                 decor: [ { x: 10, y: 14, icon: '🌻' }, { x: 1, y: 14, icon: '🪵' } ],
                 specialTiles: []
@@ -512,12 +684,23 @@
 
         // --- INIT & SCALING ---
         function init() {
+            // Oprava duplicitního menu (pokud se stala chyba při kopírování)
+            const menus = document.querySelectorAll('#mainMenu');
+            if (menus.length > 1) {
+                menus.forEach(m => {
+                    if (m.innerHTML.includes('Achievementy') || m.innerHTML.includes('startSingleplayer')) {
+                        m.remove();
+                    }
+                });
+            }
+
             containerEl.style.width = (COLS * TILE_SIZE) + 'px';
             containerEl.style.height = (ROWS * TILE_SIZE) + 'px';
             gridEl.style.gridTemplateColumns = `repeat(${COLS}, ${TILE_SIZE}px)`;
             gridEl.style.gridTemplateRows = `repeat(${ROWS}, ${TILE_SIZE}px)`;
 
-            loadGameData(); // Načíst save
+            bgMusic.volume = 0.5;
+            // loadGameData(); // Removed auto load, waiting for slot selection
             resizeGame(); // Scale pro mobil
             detectDevice(); // Detekce zařízení
             checkQuestsInit(); // Inicializace úkolů
@@ -531,23 +714,22 @@
             setInterval(updateWeather, 30000); // Check weather change
             setInterval(checkWithering, 2000); // Check for withering
             setInterval(updateTraffic, 50);
+            setInterval(updateDayCycle, 1000); // Day/Night cycle
             setInterval(saveGameData, 10000); // Autosave 10s
+            setInterval(() => { if(!isPaused && gameStarted) stats.totalPlayTime = (stats.totalPlayTime || 0) + 1000; }, 1000);
 
             window.addEventListener('keydown', handleInput);
+            window.addEventListener('resize', () => setTimeout(resizeGame, 200));
             window.addEventListener('resize', resizeGame);
             
             setupTouchControls();
-            
-            // Start music on interaction
-            const startAudio = () => { 
-                if(!musicStarted) { 
-                    bgMusic.volume = 0.5; 
-                    bgMusic.play()
-                        .then(() => { musicStarted = true; })
-                        .catch(e => console.log("Čekám na interakci pro hudbu...")); 
-                } 
-            };
-            window.addEventListener('click', startAudio); window.addEventListener('keydown', startAudio); window.addEventListener('touchstart', startAudio);
+
+            // Auto Fullscreen Listener - vrátí fullscreen při kliknutí, pokud vypadl
+            window.addEventListener('click', () => {
+                if (autoFullscreen && gameStarted && !document.fullscreenElement) {
+                    document.documentElement.requestFullscreen().catch(e => {});
+                }
+            });
         }
 
         function detectDevice() {
@@ -555,49 +737,233 @@
             
             const mobControls = document.getElementById('mobileControls');
             const pcControls = document.getElementById('pcControls');
+            const verText = document.getElementById('versionText');
             
             if (isMobile) {
                 mobControls.style.display = 'flex';
                 pcControls.style.display = 'none';
+                if (verText) verText.innerText = "Mobilní verze";
             } else {
                 mobControls.style.display = 'none';
                 pcControls.style.display = 'block';
+                if (verText) verText.innerText = "Počítačová verze";
             }
             resizeGame();
         }
 
         function resizeGame() {
-            let scaleX = window.innerWidth / (COLS * TILE_SIZE);
-            let scaleY = window.innerHeight / (ROWS * TILE_SIZE);
+            const hudMargin = 70; // Místo pro HUD nahoře
+            let availableWidth = window.innerWidth;
+            let availableHeight = window.innerHeight - hudMargin;
+            
+            let scaleX = availableWidth / (COLS * TILE_SIZE);
+            let scaleY = availableHeight / (ROWS * TILE_SIZE);
             let scale = Math.min(scaleX, scaleY) * 0.95; 
-            containerEl.style.transform = `scale(${scale})`;
+            
+            let w = COLS * TILE_SIZE * scale;
+            let h = ROWS * TILE_SIZE * scale;
+            
+            let left = (window.innerWidth - w) / 2;
+            let top = hudMargin + (availableHeight - h) / 2;
+            
+            containerEl.style.transform = `translate(${left}px, ${top}px) scale(${scale})`;
         }
 
-        function startSingleplayer() {
+        // Alias pro staré tlačítko, kdyby tam zůstalo
+        function startSingleplayer() { openSaveSlots(); }
+
+        // --- SAVE SLOTS SYSTEM ---
+        function openSaveSlots() {
             document.getElementById('mainMenu').style.display = 'none';
+            document.getElementById('saveSlotsMenu').style.display = 'flex';
+            
+            // Migrace starého savu
+            if (localStorage.getItem('farmSave') && !localStorage.getItem('farmSave_1')) {
+                let old = localStorage.getItem('farmSave');
+                let data = JSON.parse(old);
+                data.saveName = "Starý Svět";
+                localStorage.setItem('farmSave_1', JSON.stringify(data));
+                localStorage.removeItem('farmSave');
+            }
+
+            renderSlots();
+        }
+
+        function closeSaveSlots() {
+            document.getElementById('saveSlotsMenu').style.display = 'none';
+            document.getElementById('mainMenu').style.display = 'flex';
+        }
+
+        function renderSlots() {
+            let html = '';
+            for (let i = 1; i <= 3; i++) {
+                let data = localStorage.getItem('farmSave_' + i);
+                if (data) {
+                    data = JSON.parse(data);
+                    let date = new Date(data.timestamp || Date.now()).toLocaleDateString();
+                    html += `
+                    <div class="slot-card">
+                        <div class="slot-info">
+                            <div class="slot-name">${data.saveName || 'Svět ' + i}</div>
+                            <div class="slot-details">Level ${data.level || 1} • Peníze: ${data.money || 0} • ${date}</div>
+                        </div>
+                        <div class="slot-actions">
+                            <button class="btn-buy" style="background:#2e7d32;" onclick="loadGameFromSlot(${i})">Hrát</button>
+                            <button class="btn-buy" style="background:#c62828;" onclick="deleteSave(${i})">Smazat</button>
+                        </div>
+                    </div>`;
+                } else {
+                    html += `
+                    <div class="slot-card" style="opacity:0.7; border-style:dashed;">
+                        <div class="slot-info"><div class="slot-name" style="color:#aaa">Prázdný slot ${i}</div></div>
+                        <div class="slot-actions">
+                            <button class="btn-buy" style="background:#1565c0;" onclick="initNewGame(${i})">Vytvořit</button>
+                        </div>
+                    </div>`;
+                }
+            }
+            document.getElementById('slotsContainer').innerHTML = html;
+        }
+
+        let tempSlotId = null;
+        function initNewGame(id) { tempSlotId = id; document.getElementById('newSaveName').value = ''; document.getElementById('newGameModal').style.display = 'flex'; }
+        function closeNewGameModal() { document.getElementById('newGameModal').style.display = 'none'; }
+        
+        function confirmNewGame() {
+            let name = document.getElementById('newSaveName').value.trim() || `Svět ${tempSlotId}`;
+            currentSaveSlot = tempSlotId;
+            let diffEl = document.querySelector('input[name="difficulty"]:checked');
+            currentDifficulty = diffEl ? diffEl.value : 'beginner';
+            tutorialSeen = false;
+            dailyLogin = { lastClaim: 0, streak: 0 };
+            // Reset variables to default
+            resetGameVariables();
+            saveGameData(name); // Save immediately to create the slot
+            closeNewGameModal();
+            loadGameFromSlot(currentSaveSlot);
+        }
+
+        function deleteSave(id) {
+            if(confirm("Opravdu smazat tento svět?")) {
+                localStorage.removeItem('farmSave_' + id);
+                renderSlots();
+            }
+        }
+
+        function loadGameFromSlot(id) {
+            currentSaveSlot = id;
+            loadGameData();
+            startGameSession();
+        }
+
+        function startGameSession() {
+            document.getElementById('saveSlotsMenu').style.display = 'none';
             gameStarted = true;
             isPaused = false;
+
+            // Oprava: Načíst mapu podle uložené pozice (řeší auta na farmě)
+            loadMap(currentMapId);
+            updatePlayerPos(true);
+            
+            let savedRate = bgMusic.playbackRate;
+            bgMusic.src = MUSIC_TRACKS[currentTrackIndex];
+            bgMusic.playbackRate = savedRate;
+
+            if (shouldPlayMusic) {
+                bgMusic.play().catch(e => console.log(e));
+                document.getElementById('btnMusicToggle').innerText = "Stop";
+            } else {
+                document.getElementById('btnMusicToggle').innerText = "Hrát";
+            }
+            
+            if (isMobile || autoFullscreen) {
+                toggleFullscreen();
+            }
+            setTimeout(resizeGame, 500);
+
+            setTimeout(() => {
+                if (currentDifficulty === 'beginner' && !tutorialSeen) {
+                    startTutorial();
+                } else if (currentDifficulty === 'advanced' && !tutorialSeen) {
+                    showFloatingText("Užívej hraní!", "#fff");
+                    tutorialSeen = true;
+                    saveGameData();
+                    checkDailyReward();
+                } else {
+                    checkDailyReward();
+                }
+            }, 1000);
+        }
+
+        function resetGameVariables() {
+            money = 100; xp = 0; level = 1; maxXp = 100;
+            stats = { totalMoney: 0, totalSold: 0, totalHarvested: 0, totalSteps: 0, totalPlayTime: 0 };
+            completedAchievementIds = [];
+            inventory = {}; siloStorage = {}; barnStorage = {};
+            farmCrops = []; currentMapId = 'farm';
+            playerPos = { x: 13, y: 8 };
+            activeQuests = [];
+            currentHoeIndex = 0; currentBasketIndex = 0; currentCanIndex = 0; currentShovelIndex = 0;
+            shopStock = {}; nextShopResetTime = 0;
+            dailyLogin = { lastClaim: 0, streak: 0 };
+            cycleStartTime = Date.now();
+            
+            // Reset map fields
+            MAPS.farm.fields.forEach(f => f.unlocked = (f.id === 0));
+            
+            // Reset skills
+            for(let k in SKILLS) SKILLS[k].level = 1;
+            SKILLS.luck.level = 0;
         }
 
         // --- SAVE SYSTEM ---
-        function saveGameData() {
+        function saveGameData(forceName = null) {
+            if (!currentSaveSlot) return;
+            
+            // Get existing name if not forcing new one
+            let existingName = forceName;
+            if (!existingName) {
+                let old = localStorage.getItem('farmSave_' + currentSaveSlot);
+                if (old) existingName = JSON.parse(old).saveName;
+            }
+
             const data = {
+                saveName: existingName || "Svět " + currentSaveSlot,
+                timestamp: Date.now(),
+                cycleProgress: Date.now() - cycleStartTime,
+                difficulty: currentDifficulty,
+                tutorialSeen: tutorialSeen,
+                dailyLogin,
+                autoFullscreen,
                 money, xp, level, stats, completedAchievementIds,
                 inventory, siloStorage, barnStorage, farmCrops, currentMapId, playerPos, 
                 currentHoeIndex, currentBasketIndex, currentCanIndex, currentShovelIndex,
                 activeQuests,
                 skills: Object.keys(SKILLS).map(k => ({ key: k, level: SKILLS[k].level })),
-                unlockedFields: MAPS.farm.fields.map(f => ({ id: f.id, unlocked: f.unlocked }))
+                shopStock, nextShopResetTime,
+                unlockedFields: MAPS.farm.fields.map(f => ({ id: f.id, unlocked: f.unlocked })),
+                musicSettings: {
+                    trackIndex: currentTrackIndex,
+                    speed: bgMusic.playbackRate,
+                    volume: Math.round(bgMusic.volume * 100),
+                    shouldPlay: shouldPlayMusic
+                }
             };
-            localStorage.setItem('farmSave', JSON.stringify(data));
+            localStorage.setItem('farmSave_' + currentSaveSlot, JSON.stringify(data));
             console.log("Hra uložena");
         }
 
         function loadGameData() {
-            const json = localStorage.getItem('farmSave');
+            if (!currentSaveSlot) return;
+            const json = localStorage.getItem('farmSave_' + currentSaveSlot);
             if (json) {
                 try {
                     const data = JSON.parse(json);
+                    if (data.cycleProgress) cycleStartTime = Date.now() - data.cycleProgress;
+                    currentDifficulty = data.difficulty || 'beginner';
+                    tutorialSeen = data.tutorialSeen || false;
+                    dailyLogin = data.dailyLogin || { lastClaim: 0, streak: 0 };
+                    autoFullscreen = data.autoFullscreen || false;
                     money = data.money;
                     xp = data.xp || 0;
                     level = data.level || 1;
@@ -608,6 +974,8 @@
                     siloStorage = data.siloStorage || {};
                     barnStorage = data.barnStorage || {};
                     farmCrops = data.farmCrops || [];
+                    shopStock = data.shopStock || {};
+                    nextShopResetTime = data.nextShopResetTime || 0;
                     
                     if (data.holding && Object.keys(inventory).length === 0) { inventory['wheat'] = data.holding; }
                     updateHolding();
@@ -633,16 +1001,20 @@
                             if (f) f.unlocked = uf.unlocked;
                         });
                     }
+                    if (data.musicSettings) {
+                        currentTrackIndex = data.musicSettings.trackIndex || 0;
+                        let vol = data.musicSettings.volume !== undefined ? data.musicSettings.volume : 50;
+                        bgMusic.volume = vol / 100;
+                        bgMusic.playbackRate = data.musicSettings.speed || 1.0;
+                        shouldPlayMusic = (data.musicSettings.shouldPlay !== undefined) ? data.musicSettings.shouldPlay : true;
+                        document.getElementById('volSlider').value = vol;
+                        document.getElementById('volValue').innerText = vol + '%';
+                        document.getElementById('speedValue').innerText = bgMusic.playbackRate.toFixed(2) + 'x';
+                    }
                     checkQuestsInit();
                     document.getElementById('equippedTool').innerText = HOES[currentHoeIndex].icon;
+                    if (nextShopResetTime === 0 || Date.now() >= nextShopResetTime) resetSeedShop();
                 } catch (e) { console.error("Chyba načítání save", e); }
-            }
-        }
-
-        function resetGame() {
-            if(confirm("Opravdu vymazat postup?")) {
-                localStorage.removeItem('farmSave');
-                location.reload();
             }
         }
 
@@ -795,6 +1167,11 @@
             if (e.key === 'Escape') {
                 if (settingsMenuEl.style.display === 'flex') { closeSettings(); return; }
                 if (modalEl.style.display === 'flex') { closeShop(); return; }
+                if (document.getElementById('inventoryModal').style.display === 'flex') { closeInventory(); return; }
+                if (document.getElementById('questModal').style.display === 'flex') { closeQuestLog(); return; }
+                if (document.getElementById('achievementsModal').style.display === 'flex') { closeAchievements(); return; }
+                if (document.getElementById('statsModal').style.display === 'flex') { closeStats(); return; }
+                if (document.getElementById('gameplaySettings').style.display === 'flex') { closeGameplaySettings(); return; }
                 togglePause();
                 return;
             }
@@ -808,6 +1185,19 @@
                     closeAchievements();
                     isPaused = true;
                     openSettings();
+                }
+                return;
+            }
+
+            if (e.key.toLowerCase() === 'r') {
+                if (document.getElementById('inventoryModal').style.display === 'flex') {
+                    closeInventory();
+                } else {
+                    if (modalEl.style.display === 'flex') closeShop();
+                    closeQuestLog();
+                    closeAchievements();
+                    closeSettings();
+                    openInventory();
                 }
                 return;
             }
@@ -836,6 +1226,7 @@
                 if (ny >= 0 && ny < ROWS) {
                     isMoving = true; playerPos.x = nx; playerPos.y = ny;
                     updatePlayerPos();
+                    stats.totalSteps = (stats.totalSteps || 0) + 1;
                     setTimeout(() => { isMoving = false; }, moveSpeed);
                 }
             }
@@ -843,15 +1234,32 @@
         }
 
         function switchMap(direction) {
-            containerEl.style.transform = `scale(${window.innerWidth/(COLS*TILE_SIZE)*0.95}) ` + (direction === 'left' ? 'translateX(20px)' : 'translateX(-20px)');
-            containerEl.style.opacity = '0';
+            const overlay = document.getElementById('transitionOverlay');
+            const txt = document.getElementById('transitionText');
+            const arrow = document.getElementById('transitionArrow');
+            
+            txt.innerText = direction === 'left' ? "MĚSTO" : "FARMA";
+            arrow.innerText = direction === 'left' ? "⬅" : "➡";
+            
+            overlay.classList.add('active');
+            
             setTimeout(() => {
-                if (direction === 'left') { loadMap('town'); playerPos.x = COLS - 2; }
-                else { loadMap('farm'); playerPos.x = 1; }
+                if (direction === 'left') { 
+                    loadMap('town'); 
+                    playerPos.x = COLS - 2; 
+                    playerPos.y = 6; // Teleport na chodník (o 1 výše)
+                } else { 
+                    loadMap('farm'); 
+                    playerPos.x = 1; 
+                    playerPos.y = 7; 
+                }
                 updatePlayerPos(true);
-                containerEl.style.opacity = '1';
-                resizeGame(); // Reset scale transform
-            }, 300);
+                resizeGame();
+                
+                setTimeout(() => {
+                    overlay.classList.remove('active');
+                }, 500);
+            }, 500);
         }
 
         // --- CORE GAME LOGIC (Movement, Interaction, Harvest) ---
@@ -1159,6 +1567,8 @@
             if (money >= f.price) {
                 money -= f.price; f.unlocked = true;
                 showFloatingText("Koupeno!", "#00e676");
+                let snd = document.getElementById('buySound');
+                snd.currentTime = 0; snd.play().catch(e => console.log(e));
                 loadMap(currentMapId); updateUI(); saveGameData();
             } else showFloatingText("Chybí peníze!", "#f44336");
         }
@@ -1197,6 +1607,8 @@
                 else if (type === 'can') { currentCanIndex = index; }
                 else if (type === 'shovel') { currentShovelIndex = index; }
                 else { currentBasketIndex = index; }
+                let snd = document.getElementById('buySound');
+                snd.currentTime = 0; snd.play().catch(e => console.log(e));
                 updateUI(); openItemShop(type); saveGameData();
             } else alert("Nedostatek peněz!");
         }
@@ -1219,37 +1631,101 @@
             if (money >= cost && s.level < s.maxLevel) {
                 money -= cost; s.level++;
                 if (s.effect) s.effect();
+                let snd = document.getElementById('buySound');
+                snd.currentTime = 0; snd.play().catch(e => console.log(e));
                 updateUI(); openSkillShop(); saveGameData();
             } else alert("Nedostatek peněz!");
         }
         
         function openSeedShop() {
+            if (Date.now() >= nextShopResetTime) {
+                resetSeedShop();
+            }
+
             document.getElementById('shopTitle').innerText = "Semena";
-            let html = `<table class="shop-table"><tr><th>Semeno</th><th>Cena</th><th></th></tr>`;
+            
+            let timerHtml = `<div id="shopTimer" style="text-align:center; color:#aaa; margin-bottom:10px; font-size:0.9em;"></div>`;
+            let html = timerHtml + `<table class="shop-table"><tr><th>Semeno</th><th>Sklad</th><th>Cena</th><th></th></tr>`;
             
             // Seřadit semena podle levelu
             let seeds = Object.keys(ITEMS).filter(k => ITEMS[k].type === 'seed').sort((a,b) => ITEMS[a].reqLevel - ITEMS[b].reqLevel);
 
             seeds.forEach(key => {
                 let item = ITEMS[key];
+                let stock = shopStock[key] !== undefined ? shopStock[key] : 0;
                 let locked = level < item.reqLevel;
-                let btn = locked ? `<span style="color:#e57373; font-size:0.8em;">Lvl ${item.reqLevel}</span>` : `<button class="btn-buy" onclick="buySeed('${key}')">Koupit</button>`;
-                html += `<tr><td><b>${item.name}</b></td><td style="color:#ffd54f">${item.price}</td><td>${btn}</td></tr>`;
+                
+                let btn;
+                if (locked) {
+                    btn = `<span style="color:#e57373; font-size:0.8em;">Lvl ${item.reqLevel}</span>`;
+                } else if (stock <= 0) {
+                    btn = `<span style="color:#555; font-size:0.8em;">Vyprodáno</span>`;
+                } else {
+                    btn = `<button class="btn-buy" onclick="buySeed('${key}')">Koupit</button>`;
+                }
+                
+                html += `<tr><td><b>${item.name}</b></td><td>${stock} ks</td><td style="color:#ffd54f">${item.price}</td><td>${btn}</td></tr>`;
             });
             html += `</table>`;
             document.getElementById('shopContent').innerHTML = html;
             modalEl.style.display = 'flex';
+            
+            updateShopTimerUI();
+            if(shopTimerInterval) clearInterval(shopTimerInterval);
+            shopTimerInterval = setInterval(updateShopTimerUI, 1000);
+        }
+
+        function updateShopTimerUI() {
+            let el = document.getElementById('shopTimer');
+            if(!el) return;
+            let diff = nextShopResetTime - Date.now();
+            if (diff <= 0) {
+                el.innerText = "Nové zboží dorazilo! (Zavři a otevři obchod)";
+            } else {
+                let m = Math.floor(diff / 60000);
+                let s = Math.floor((diff % 60000) / 1000);
+                el.innerText = `Nové zboží za: ${m}:${s < 10 ? '0'+s : s}`;
+            }
         }
 
         function buySeed(key) {
+            if (Date.now() >= nextShopResetTime) {
+                resetSeedShop();
+                openSeedShop();
+                alert("Nabídka obchodu se právě změnila!");
+                return;
+            }
+
             let item = ITEMS[key];
             let cap = BASKETS[currentBasketIndex].cap;
+            
+            if ((shopStock[key] || 0) <= 0) { alert("Toto zboží je vyprodané!"); return; }
+            
             if (holding >= cap) { alert("Plný košík!"); return; }
             if (money >= item.price) {
                 money -= item.price;
                 inventory[key] = (inventory[key] || 0) + 1;
+                shopStock[key]--;
+                let snd = document.getElementById('buySound');
+                snd.currentTime = 0; snd.play().catch(e => console.log(e));
                 updateHolding(); updateUI(); saveGameData();
+                openSeedShop(); // Refresh UI
             } else alert("Nedostatek peněz!");
+        }
+
+        function resetSeedShop() {
+            shopStock = {};
+            Object.keys(ITEMS).forEach(key => {
+                if (ITEMS[key].type === 'seed') {
+                    let item = ITEMS[key];
+                    // Vzorec pro zásoby: Čím vyšší level, tím méně kusů (ale min 1)
+                    // Level 1: max cca 35 ks, Level 25: max cca 3 ks
+                    let max = Math.max(3, 35 - Math.floor(item.reqLevel * 1.3));
+                    shopStock[key] = Math.floor(Math.random() * max) + 1;
+                }
+            });
+            nextShopResetTime = Date.now() + 3 * 60 * 1000; // 3 minuty
+            saveGameData();
         }
 
         function openStorage(type) {
@@ -1320,7 +1796,64 @@
         }
         function getSiloCount() { return Object.values(siloStorage).reduce((a,b)=>a+b,0); }
 
-        function closeShop() { modalEl.style.display = 'none'; }
+        function closeShop() { 
+            modalEl.style.display = 'none'; 
+            if(shopTimerInterval) { clearInterval(shopTimerInterval); shopTimerInterval = null; }
+        }
+
+        // --- DAY/NIGHT CYCLE ---
+        function updateDayCycle() {
+            let now = Date.now();
+            let dt = now - lastTime;
+            lastTime = now;
+
+            if (isPaused || !gameStarted || 
+                modalEl.style.display === 'flex' || 
+                document.getElementById('questModal').style.display === 'flex' || 
+                document.getElementById('achievementsModal').style.display === 'flex') {
+                cycleStartTime += dt;
+                nextShopResetTime += dt;
+                return;
+            }
+
+            const totalCycle = DAY_DURATION + NIGHT_DURATION;
+            let elapsed = (Date.now() - cycleStartTime) % totalCycle;
+            if (elapsed < 0) elapsed += totalCycle;
+
+            let isDay = elapsed < DAY_DURATION;
+            let timeLeft = isDay ? (DAY_DURATION - elapsed) : (totalCycle - elapsed);
+            
+            document.getElementById('dayNightIcon').innerText = isDay ? '☀️' : '🌙';
+            document.getElementById('nightOverlay').style.opacity = isDay ? 0 : 0.7;
+            
+            let m = Math.floor(timeLeft / 60000);
+            let s = Math.floor((timeLeft % 60000) / 1000);
+            document.getElementById('dayNightTimer').innerText = `${m}:${s < 10 ? '0'+s : s}`;
+        }
+
+        function trySleep() {
+            const totalCycle = DAY_DURATION + NIGHT_DURATION;
+            let elapsed = (Date.now() - cycleStartTime) % totalCycle;
+            if (elapsed < DAY_DURATION) {
+                showFloatingText("Spát lze jen v noci!", "#fff");
+                return;
+            }
+
+            const overlay = document.getElementById('transitionOverlay');
+            document.getElementById('transitionText').innerText = "SPÁNEK...";
+            document.getElementById('transitionArrow').innerText = "💤";
+            overlay.classList.add('active');
+
+            setTimeout(() => {
+                // Reset cycle to 30s into day
+                cycleStartTime = Date.now() - 30000; 
+                updateDayCycle();
+                showFloatingText("Dobré ráno!", "#ffeb3b");
+                saveGameData();
+                setTimeout(() => overlay.classList.remove('active'), 1000);
+            }, 2000);
+        }
+
         function showBubble(tx, ty, text) {
             bubbleEl.style.display = 'block';
             bubbleEl.style.left = (tx * TILE_SIZE) + 'px';
@@ -1351,6 +1884,14 @@
             isPaused = !isPaused;
             escMenuEl.style.display = isPaused ? 'flex' : 'none';
         }
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => console.log(e));
+            } else {
+                document.exitFullscreen();
+            }
+        }
         
         function resumeGame() {
             isPaused = false;
@@ -1358,17 +1899,66 @@
         }
 
         function openSettings() {
-            if (gameStarted) escMenuEl.style.display = 'none';
-            else document.getElementById('mainMenu').style.display = 'none';
+            if (gameStarted) {
+                escMenuEl.style.display = 'none';
+                settingsMenuEl.style.backgroundColor = 'rgba(0,0,0,0.85)';
+            } else {
+                document.getElementById('mainMenu').style.display = 'none';
+                settingsMenuEl.style.backgroundColor = '#121212';
+            }
             settingsMenuEl.style.display = 'flex';
             document.getElementById('btnMusicToggle').innerText = bgMusic.paused ? "Hrát" : "Stop";
             document.getElementById('speedValue').innerText = bgMusic.playbackRate.toFixed(2) + 'x';
+            document.getElementById('musicSelect').value = currentTrackIndex;
+            document.getElementById('btnAutoFs').innerText = "Auto Fullscreen: " + (autoFullscreen ? "Zapnuto" : "Vypnuto");
         }
 
         function closeSettings() {
             settingsMenuEl.style.display = 'none';
             if (gameStarted) escMenuEl.style.display = 'flex';
             else document.getElementById('mainMenu').style.display = 'flex';
+        }
+
+        function openGameplaySettings() {
+            gameplaySource = 'settings';
+            document.getElementById('settingsMenu').style.display = 'none';
+            document.getElementById('gameplaySettings').style.display = 'flex';
+        }
+
+        function openGameplaySettingsFromPause() {
+            gameplaySource = 'pause';
+            document.getElementById('escMenu').style.display = 'none';
+            document.getElementById('gameplaySettings').style.display = 'flex';
+        }
+
+        function closeGameplaySettings() {
+            document.getElementById('gameplaySettings').style.display = 'none';
+            document.getElementById('escMenu').style.display = 'flex';
+        }
+
+        function openStats() {
+            document.getElementById('gameplaySettings').style.display = 'none';
+            
+            let time = stats.totalPlayTime || 0;
+            let hours = Math.floor(time / 3600000);
+            let minutes = Math.floor((time % 3600000) / 60000);
+            let seconds = Math.floor((time % 60000) / 1000);
+            let timeStr = `${hours}h ${minutes}m ${seconds}s`;
+
+            let html = `<table class="shop-table">
+                <tr><td>Odehraný čas</td><td style="text-align:right">${timeStr}</td></tr>
+                <tr><td>Kroky</td><td style="text-align:right">${stats.totalSteps || 0}</td></tr>
+                <tr><td>Celkem vyděláno</td><td style="text-align:right">${stats.totalMoney || 0} Kč</td></tr>
+                <tr><td>Celkem prodáno</td><td style="text-align:right">${stats.totalSold || 0} ks</td></tr>
+                <tr><td>Celkem sklizeno</td><td style="text-align:right">${stats.totalHarvested || 0} ks</td></tr>
+            </table>`;
+            document.getElementById('statsContent').innerHTML = html;
+            document.getElementById('statsModal').style.display = 'flex';
+        }
+
+        function closeStats() {
+            document.getElementById('statsModal').style.display = 'none';
+            document.getElementById('gameplaySettings').style.display = 'flex';
         }
 
         function updateVolume(val) {
@@ -1380,10 +1970,22 @@
             if (bgMusic.paused) {
                 bgMusic.play();
                 document.getElementById('btnMusicToggle').innerText = "Stop";
+                shouldPlayMusic = true;
             } else {
                 bgMusic.pause();
                 document.getElementById('btnMusicToggle').innerText = "Hrát";
+                shouldPlayMusic = false;
             }
+        }
+
+        function changeTrack(index) {
+            currentTrackIndex = parseInt(index);
+            let rate = bgMusic.playbackRate;
+            bgMusic.src = MUSIC_TRACKS[currentTrackIndex];
+            bgMusic.playbackRate = rate;
+            bgMusic.play().catch(e => console.log(e));
+            document.getElementById('btnMusicToggle').innerText = "Stop";
+            shouldPlayMusic = true;
         }
 
         function changeSpeed(delta) {
@@ -1392,8 +1994,17 @@
             document.getElementById('speedValue').innerText = newRate.toFixed(2) + 'x';
         }
 
+        function toggleAutoFullscreen() {
+            autoFullscreen = !autoFullscreen;
+            document.getElementById('btnAutoFs').innerText = "Auto Fullscreen: " + (autoFullscreen ? "Zapnuto" : "Vypnuto");
+            if (autoFullscreen && !document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(e => console.log(e));
+            }
+        }
+
         function saveAndExit() {
             saveGameData();
+            bgMusic.pause();
             escMenuEl.style.display = 'none';
             document.getElementById('mainMenu').style.display = 'flex';
             gameStarted = false;
@@ -1438,7 +2049,12 @@
                     q.current += amount;
                     if (q.current > q.amount) q.current = q.amount;
                     changed = true;
-                    if (q.current >= q.amount) showFloatingText("Úkol splněn!", "#76ff03");
+                if (q.current >= q.amount) {
+                    showFloatingText("Úkol splněn!", "#76ff03");
+                    let snd = document.getElementById('questSound');
+                    snd.currentTime = 0;
+                    snd.play().catch(e => console.log(e));
+                }
                 }
             });
             if (changed) { saveGameData(); updateUI(); }
@@ -1475,6 +2091,116 @@
                 activeQuests.push(generateNewQuest());
                 saveGameData(); updateUI(); openQuestLog();
             }
+        }
+
+        // --- DAILY REWARD SYSTEM ---
+        const DAILY_REWARDS = [
+            { money: 100, xp: 0 },
+            { money: 250, xp: 0 },
+            { money: 500, xp: 20 },
+            { money: 1000, xp: 50 },
+            { money: 2000, xp: 100 },
+            { money: 5000, xp: 200 },
+            { money: 10000, xp: 500 } // Day 7+
+        ];
+
+        function checkDailyReward() {
+            let now = new Date();
+            let todayStr = now.toDateString();
+            let lastDate = new Date(dailyLogin.lastClaim || 0);
+            let lastStr = lastDate.toDateString();
+
+            if (todayStr !== lastStr) {
+                // Check streak
+                let yesterday = new Date(now);
+                yesterday.setDate(yesterday.getDate() - 1);
+                
+                if (dailyLogin.lastClaim === 0 || yesterday.toDateString() === lastStr) {
+                    // Streak continues (or new game)
+                    // Don't increment yet, wait for claim
+                } else {
+                    // Streak broken
+                    dailyLogin.streak = 0;
+                }
+                
+                showDailyRewardModal();
+            }
+        }
+
+        function showDailyRewardModal() {
+            let currentStreak = dailyLogin.streak; // 0-based index for array
+            if (currentStreak >= DAILY_REWARDS.length) currentStreak = DAILY_REWARDS.length - 1;
+            
+            let html = '';
+            for (let i = 0; i < DAILY_REWARDS.length; i++) {
+                let r = DAILY_REWARDS[i];
+                let status = i < currentStreak ? 'claimed' : (i === currentStreak ? 'active' : '');
+                html += `<div class="daily-day ${status}">
+                    <div class="daily-day-num">Den ${i+1}</div>
+                    <div class="daily-day-reward">${r.money}</div>
+                </div>`;
+            }
+            document.getElementById('dailyRewardGrid').innerHTML = html;
+            document.getElementById('dailyRewardValue').innerText = `Dnes: ${DAILY_REWARDS[currentStreak].money} Kč` + (DAILY_REWARDS[currentStreak].xp > 0 ? ` + ${DAILY_REWARDS[currentStreak].xp} XP` : '');
+            document.getElementById('dailyRewardModal').style.display = 'flex';
+        }
+
+        function claimDailyReward() {
+            let currentStreak = dailyLogin.streak;
+            if (currentStreak >= DAILY_REWARDS.length) currentStreak = DAILY_REWARDS.length - 1;
+            let reward = DAILY_REWARDS[currentStreak];
+            
+            money += reward.money;
+            if (reward.xp > 0) addXp(reward.xp);
+            
+            dailyLogin.lastClaim = Date.now();
+            dailyLogin.streak++;
+            
+            showFloatingText(`+${reward.money} Kč`, "#ffd700");
+            if (reward.xp > 0) setTimeout(() => showFloatingText(`+${reward.xp} XP`, "#e040fb"), 300);
+            
+            let snd = document.getElementById('questSound');
+            snd.currentTime = 0; snd.play().catch(e => console.log(e));
+            
+            document.getElementById('dailyRewardModal').style.display = 'none';
+            saveGameData();
+        }
+
+        // --- TUTORIAL SYSTEM ---
+        let tutorialStep = 0;
+        const TUTORIAL_STEPS = [
+            { title: "Vítej na Farmě!", text: "Jelikož jsi začátečník, provedu tě základy farmaření. Tvým cílem je vybudovat prosperující farmu." },
+            { title: "Pohyb a Interakce", text: "Pohybuj se pomocí kláves WSAD nebo šipek na displeji. Interakci s objekty (pole, budovy) provedeš klávesou 'E' nebo tlačítkem AKCE." },
+            { title: "Sázení", text: "Dojdi k poli. Pokud máš semínka, stiskni Akci pro zasazení. Semínka koupíš ve městě (cesta vlevo)." },
+            { title: "Péče o úrodu", text: "Rostliny potřebují čas. Můžeš je zalít konví pro zrychlení růstu. Pozor na usychání!" },
+            { title: "Sklizeň a Prodej", text: "Až rostlina vyroste (zezlátne), stoupni na ni a skliď ji. Úrodu pak prodej u náklaďáku vpravo a vydělej peníze." },
+            { title: "Hodně štěstí!", text: "To je vše do začátku. Sleduj úkoly v horním menu pro další postup. Ať se daří!" }
+        ];
+
+        function startTutorial() {
+            tutorialStep = 0;
+            showTutorialStep();
+        }
+
+        function showTutorialStep() {
+            if (tutorialStep >= TUTORIAL_STEPS.length) {
+                document.getElementById('tutorialModal').style.display = 'none';
+                if (gameStarted && !tutorialSeen) {
+                    tutorialSeen = true;
+                    saveGameData();
+                    checkDailyReward();
+                }
+                return;
+            }
+            const step = TUTORIAL_STEPS[tutorialStep];
+            document.getElementById('tutTitle').innerText = step.title;
+            document.getElementById('tutText').innerText = step.text;
+            document.getElementById('tutorialModal').style.display = 'flex';
+        }
+
+        function nextTutorialStep() {
+            tutorialStep++;
+            showTutorialStep();
         }
 
         // --- ACHIEVEMENT SYSTEM ---
@@ -1527,8 +2253,49 @@
             else document.getElementById('mainMenu').style.display = 'flex';
         }
 
+        // --- INVENTORY SYSTEM ---
+        function openInventory() {
+            if (gameStarted) escMenuEl.style.display = 'none';
+            
+            let seedsHtml = '';
+            let cropsHtml = '';
+            
+            Object.keys(inventory).sort().forEach(key => {
+                if (inventory[key] > 0 && ITEMS[key]) {
+                    let item = ITEMS[key];
+                    if (item.type === 'seed') {
+                        seedsHtml += `<tr><td>${item.name}</td><td>${inventory[key]} ks</td></tr>`;
+                    } else if (item.type === 'crop') {
+                        cropsHtml += `<tr><td>${item.name}</td><td>${inventory[key]} ks</td></tr>`;
+                    }
+                }
+            });
+
+            if (seedsHtml === '') seedsHtml = '<tr><td colspan="2" style="color:#aaa">Žádná semena</td></tr>';
+            if (cropsHtml === '') cropsHtml = '<tr><td colspan="2" style="color:#aaa">Žádná úroda</td></tr>';
+
+            let toolsHtml = `
+                <tr><td>Motyka</td><td>${HOES[currentHoeIndex].name} <small style="color:#aaa">(Bonus +${HOES[currentHoeIndex].bonus-1})</small></td></tr>
+                <tr><td>Batoh</td><td>${BASKETS[currentBasketIndex].name} <small style="color:#aaa">(Kapacita ${BASKETS[currentBasketIndex].cap})</small></td></tr>
+                <tr><td>Konev</td><td>${CANS[currentCanIndex].name} <small style="color:#aaa">(Rychlost ${CANS[currentCanIndex].speed})</small></td></tr>
+                <tr><td>Lopata</td><td>${SHOVELS[currentShovelIndex].name} <small style="color:#aaa">(Síla ${SHOVELS[currentShovelIndex].power})</small></td></tr>
+            `;
+
+            let html = `<h3 style="border-bottom:1px solid #555; padding-bottom:5px; margin-top:0;">Semena</h3><table class="shop-table" style="margin-top:0;">${seedsHtml}</table><h3 style="border-bottom:1px solid #555; padding-bottom:5px;">Sklizeň</h3><table class="shop-table" style="margin-top:0;">${cropsHtml}</table><h3 style="border-bottom:1px solid #555; padding-bottom:5px;">Nástroje</h3><table class="shop-table" style="margin-top:0;">${toolsHtml}</table>`;
+
+            document.getElementById('inventoryContent').innerHTML = html;
+            document.getElementById('inventoryModal').style.display = 'flex';
+            isPaused = true;
+        }
+
+        function closeInventory() {
+            document.getElementById('inventoryModal').style.display = 'none';
+            if (gameStarted) isPaused = false;
+        }
+
         // --- WEATHER SYSTEM ---
         function updateWeather() {
+            if (isPaused || !gameStarted || modalEl.style.display === 'flex' || document.getElementById('questModal').style.display === 'flex' || document.getElementById('achievementsModal').style.display === 'flex') return;
             if (Math.random() < 0.3) { // 30% chance to change
                 weather = weather === 'sun' ? 'rain' : 'sun';
                 const rainEl = document.getElementById('rainLayer');
@@ -1552,6 +2319,7 @@
         }
         
         function checkWithering() {
+            if (isPaused || !gameStarted || modalEl.style.display === 'flex' || document.getElementById('questModal').style.display === 'flex' || document.getElementById('achievementsModal').style.display === 'flex') return;
             if (temperature <= 32) return;
             farmCrops.forEach(saved => {
                 if (saved.ready || saved.watered || saved.withered || saved.dead) return;
