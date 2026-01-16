@@ -1,7 +1,7 @@
 {
   "name": "FarmCraft: Mobile Edition",
   "short_name": "FarmCraft",
-  "start_url": "./Mobil-1.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#121212",
   "theme_color": "#7cb342",
