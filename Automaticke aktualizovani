@@ -1,0 +1,23 @@
+@echo off
+title Nahravani na GitHub
+color 0A
+echo -----------------------------------------
+echo  NAHRAVANI ZMEN DO HRY FARM CRAFT
+echo -----------------------------------------
+echo.
+
+:: 1. Prida vsechny zmenene soubory do seznamu
+git add .
+
+:: 2. Ulozi zmeny s popisem (automaticky cas)
+git commit -m "Aktualizace hry %date% %time%"
+
+:: 3. Odesle vse na GitHub
+git push
+
+echo.
+echo -----------------------------------------
+echo  HOTOVO! Hra byla nahrana na GitHub.
+echo  Za chvili se aktualizace projevi na telefonu.
+echo -----------------------------------------
+pause
