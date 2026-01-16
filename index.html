@@ -31,7 +31,7 @@
             background: linear-gradient(180deg, #2d2d2d, #1a1a1a);
             padding: 8px 15px; border-radius: 12px; border: 2px solid #555;
             display: flex; gap: 20px; width: 95%; max-width: 800px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.6); z-index: 100;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.6); z-index: 300;
             justify-content: space-between; align-items: center;
             font-size: 0.9em;
         }
@@ -97,6 +97,7 @@
         .game-object { position: absolute; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; pointer-events: none; z-index: 15; }
         .building-sprite { font-size: 3em; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.6)); }
         .building-label { background: rgba(0,0,0,0.85); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-top: -10px; border: 1px solid #999; white-space: nowrap; box-shadow: 0 2px 5px black; }
+        .building-label { background: rgba(0,0,0,0.85); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 0.7em; margin-top: -10px; border: 1px solid #999; white-space: nowrap; box-shadow: 0 2px 5px black; position: relative; z-index: 20; }
         .decor-sprite { font-size: 2.2em; filter: drop-shadow(0 3px 3px rgba(0,0,0,0.4)); }
         .truck-anim { transition: transform 3s ease-in-out; }
         .driving-away { transform: translateX(600px); } 
@@ -186,6 +187,14 @@
         .tile.soil.dead { filter: grayscale(1) brightness(0.3); border-color: #000; }
         .tile.soil.dead::after { content: '💀' !important; font-size: 1.5em; filter: none !important; }
 
+        .season-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 70;
+            transition: background-color 2s;
+        }
+
+        .tile.soil.frozen { filter: brightness(1.1) hue-rotate(190deg) saturate(0.6); border-color: #81d4fa; }
+
         .pc-controls-hint {
             position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
@@ -233,6 +242,51 @@
         .transition-overlay.active { opacity: 1; pointer-events: auto; }
         #transitionText { font-size: 3em; font-weight: bold; color: white; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; text-shadow: 0 5px 10px black; }
         #transitionArrow { font-size: 4em; color: var(--highlight); text-shadow: 0 0 10px var(--highlight); }
+
+        /* --- NOTIFICATION BANNER --- */
+        .notification-banner {
+            position: absolute; top: 80px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(90deg, #ff9800, #ff5722);
+            color: white; padding: 10px 25px; border-radius: 25px;
+            font-weight: bold; font-size: 1.1em;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 150;
+            display: none; text-align: center; border: 2px solid #fff;
+            animation: slideDown 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: none; text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        @keyframes slideDown { 0% { top: -50px; opacity: 0; } 100% { top: 80px; opacity: 1; } }
+
+        /* --- SEASONAL CHANGES --- */
+        /* Autumn */
+        .season-autumn .tile.grass { background: radial-gradient(circle at 30% 30%, #c0ca33, #827717); border-color: #9e9d24; }
+        .season-autumn .decor-sprite { filter: sepia(0.8) hue-rotate(-40deg) saturate(2) drop-shadow(0 3px 3px rgba(0,0,0,0.4)); }
+        
+        /* Winter */
+        .season-winter .tile.grass { background: radial-gradient(circle at 30% 30%, #e1f5fe, #b3e5fc); border-color: #fff; }
+        .season-winter .tile.soil { filter: grayscale(0.6) brightness(1.2); }
+        .season-winter .tile.road, .season-winter .tile.sidewalk, .season-winter .tile.concrete { filter: brightness(1.1) contrast(0.9); }
+        .season-winter .decor-sprite { filter: grayscale(1) brightness(1.8) drop-shadow(0 3px 3px rgba(0,0,0,0.2)); } /* Snowy trees */
+        .season-winter .building-sprite { filter: drop-shadow(0 5px 5px rgba(255,255,255,0.6)); } /* Snowy glow */
+
+        /* --- CONTROLS TABLE STYLE --- */
+        .controls-container { display: flex; flex-direction: column; width: 100%; border: 1px solid #555; border-radius: 8px; overflow: hidden; background: #1a1a1a; }
+        .ctrl-row { display: flex; border-bottom: 1px solid #333; min-height: 45px; }
+        .ctrl-row:last-child { border-bottom: none; }
+        .ctrl-head { background: #37474f; font-weight: bold; color: #eceff1; font-size: 0.9em; }
+        .ctrl-cell { flex: 1; padding: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; flex-wrap: wrap; font-size: 0.9em; border-right: 1px solid #333; }
+        .ctrl-cell:last-child { border-right: none; }
+        .ctrl-action { flex: 0.8; justify-content: flex-start; text-align: left; font-weight: bold; color: var(--highlight); background: #263238; padding-left: 15px; }
+        
+        .key-cap { background: #f5f5f5; color: #333; padding: 4px 8px; border-radius: 4px; font-family: 'Consolas', monospace; font-weight: bold; box-shadow: 0 3px 0 #bdbdbd; border: 1px solid #e0e0e0; font-size: 0.85em; display: inline-block; margin: 2px; min-width: 25px; text-align: center; }
+        .gp-btn { background: #424242; color: #fff; padding: 4px 10px; border-radius: 12px; border: 1px solid #757575; font-size: 0.85em; display: inline-block; margin: 2px; font-weight: bold; }
+        .gp-a { background: #1e88e5; border-color: #1565c0; } /* Blue */
+        .gp-b { background: #e53935; border-color: #c62828; } /* Red */
+        .gp-x { background: #8e24aa; border-color: #6a1b9a; } /* Purple */
+        .gp-y { background: #43a047; border-color: #2e7d32; } /* Green */
+        
+        .console-label { display: inline-block; width: 40px; font-size: 0.75em; color: #aaa; text-align: right; margin-right: 5px; }
+        .gp-row { display: flex; align-items: center; margin: 2px 0; width: 100%; }
+        .gp-icon { display: inline-block; width: 20px; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -251,6 +305,7 @@
             <span onclick="togglePause()" style="cursor:pointer; margin-left:15px;" title="Menu">⚙️</span>
         </div>
         <div class="stat-box">
+            <span id="dayDisplay" style="margin-right: 8px; font-weight: bold; color: var(--highlight);">Den 1</span>
             <span id="dayNightIcon">☀️</span> 
             <span id="dayNightTimer" style="font-family:monospace; font-weight:bold;">06:00</span>
         </div>
@@ -266,10 +321,13 @@
         </div>
     </div>
 
+    <div id="notificationBanner" class="notification-banner"></div>
+
     <div class="game-wrapper">
         <div class="game-viewport" id="gameContainer">
             <div class="world-grid" id="worldGrid"></div>
             <div id="nightOverlay" class="night-overlay"></div>
+            <div id="seasonOverlay" class="season-overlay"></div>
             <div id="rainLayer" class="rain-layer"></div>
             <div id="trafficLayer"></div>
             <div id="player">
@@ -382,6 +440,16 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="weatherModal" onclick="if(event.target === this) closeWeatherForecast()">
+        <div class="shop-window">
+            <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <h2 style="margin:0;">Předpověď počasí</h2>
+                <button class="btn-close" onclick="closeWeatherForecast()">X</button>
+            </div>
+            <div id="weatherContent"></div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="statsModal">
         <div class="shop-window">
             <div class="shop-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
@@ -423,6 +491,9 @@
     <audio id="buySound">
         <source src="https://cdn.pixabay.com/audio/2022/03/25/audio_c8c8a73467.mp3" type="audio/mpeg">
     </audio>
+    <audio id="merchantSound">
+        <source src="https://cdn.pixabay.com/audio/2021/08/04/audio_12b0c7443c.mp3" type="audio/mpeg">
+    </audio>
 
     <div class="modal-overlay" id="escMenu">
         <div class="shop-window" style="text-align: center;">
@@ -435,12 +506,95 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="controlsModal">
+        <div class="shop-window" style="text-align: center; max-width: 850px; width: 95%;">
+        <div class="shop-window" style="text-align: center; max-width: 900px; width: 95%;">
+            <h2 style="margin-top:0; color: var(--highlight);">Nastavení ovládání</h2>
+            
+            <div class="controls-container">
+                <div class="ctrl-row ctrl-head">
+                    <div class="ctrl-cell ctrl-action" style="background:transparent;">AKCE</div>
+                    <div class="ctrl-cell">KLÁVESNICE</div>
+                    <div class="ctrl-cell">DOTYK</div>
+                    <div class="ctrl-cell">GAMEPAD</div>
+                </div>
+
+                <div class="ctrl-row">
+                    <div class="ctrl-cell ctrl-action">Pohyb</div>
+                    <div class="ctrl-cell"><span class="key-cap">W</span><span class="key-cap">S</span><span class="key-cap">A</span><span class="key-cap">D</span></div>
+                    <div class="ctrl-cell">Joystick / Šipky</div>
+                    <div class="ctrl-cell">Levá páčka / D-Pad</div>
+                </div>
+
+                <div class="ctrl-row">
+                    <div class="ctrl-cell ctrl-action">Interakce</div>
+                    <div class="ctrl-cell"><span class="key-cap">E</span></div>
+                    <div class="ctrl-cell"><span class="gp-btn" style="background:#ffc107; color:#000;">AKCE</span></div>
+                    <div class="ctrl-cell"><span class="gp-btn gp-a">A</span> / <span class="gp-btn gp-a">✕</span></div>
+                    <div class="ctrl-cell" style="flex-direction:column; align-items:flex-start;">
+                        <div class="gp-row"><span class="console-label">Xbox</span> <span class="gp-btn gp-y" style="background:#4caf50; border-color:#388e3c;">A</span></div>
+                        <div class="gp-row"><span class="console-label">PS</span> <span class="gp-btn gp-a">✕</span></div>
+                        <div class="gp-row"><span class="console-label">Nin</span> <span class="gp-btn gp-a" style="background:#f44336; border-color:#d32f2f;">A</span></div>
+                    </div>
+                </div>
+
+                <div class="ctrl-row">
+                    <div class="ctrl-cell ctrl-action">Inventář</div>
+                    <div class="ctrl-cell"><span class="key-cap">R</span></div>
+                    <div class="ctrl-cell">🎒 Batoh</div>
+                    <div class="ctrl-cell"><span class="gp-btn gp-x">X</span> / <span class="gp-btn gp-x">□</span></div>
+                    <div class="ctrl-cell" style="flex-direction:column; align-items:flex-start;">
+                        <div class="gp-row"><span class="console-label">Xbox</span> <span class="gp-btn gp-a" style="background:#1976d2; border-color:#0d47a1;">X</span></div>
+                        <div class="gp-row"><span class="console-label">PS</span> <span class="gp-btn gp-x" style="background:#e91e63; border-color:#c2185b;">□</span></div>
+                        <div class="gp-row"><span class="console-label">Nin</span> <span class="gp-btn gp-y" style="background:#bdbdbd; color:black; border-color:#9e9e9e;">Y</span></div>
+                    </div>
+                </div>
+
+                <div class="ctrl-row">
+                    <div class="ctrl-cell ctrl-action">Menu / Pauza</div>
+                    <div class="ctrl-cell"><span class="key-cap">ESC</span> <span class="key-cap">P</span></div>
+                    <div class="ctrl-cell">⚙️ Nastavení</div>
+                    <div class="ctrl-cell"><span class="gp-btn">Start</span> / <span class="gp-btn gp-y">Y</span></div>
+                    <div class="ctrl-cell" style="flex-direction:column; align-items:flex-start;">
+                        <div class="gp-row"><span class="console-label">Xbox</span> <span class="gp-btn gp-b" style="background:#fbc02d; color:black; border-color:#f57f17;">Y</span> / <span class="gp-btn">☰</span></div>
+                        <div class="gp-row"><span class="console-label">PS</span> <span class="gp-btn gp-y">△</span> / <span class="gp-btn">Opt</span></div>
+                        <div class="gp-row"><span class="console-label">Nin</span> <span class="gp-btn gp-a" style="background:#bdbdbd; color:black; border-color:#9e9e9e;">X</span> / <span class="gp-btn">+</span></div>
+                    </div>
+                </div>
+
+                <div class="ctrl-row">
+                    <div class="ctrl-cell ctrl-action">Zpět / Zavřít</div>
+                    <div class="ctrl-cell"><span class="key-cap">ESC</span></div>
+                    <div class="ctrl-cell">❌ Křížek</div>
+                    <div class="ctrl-cell"><span class="gp-btn gp-b">B</span> / <span class="gp-btn gp-b">○</span></div>
+                    <div class="ctrl-cell" style="flex-direction:column; align-items:flex-start;">
+                        <div class="gp-row"><span class="console-label">Xbox</span> <span class="gp-btn gp-b">B</span></div>
+                        <div class="gp-row"><span class="console-label">PS</span> <span class="gp-btn gp-b">○</span></div>
+                        <div class="gp-row"><span class="console-label">Nin</span> <span class="gp-btn gp-b" style="background:#ffeb3b; color:black; border-color:#fbc02d;">B</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button class="menu-btn" onclick="closeControlsHelp()">Zavřít</button>
+            </div>
+        </div>
+    </div>
+
     <div class="modal-overlay" id="settingsMenu">
         <div class="shop-window" style="text-align: center;">
             <h2 style="margin-top:0;">Nastavení</h2>
             <div class="slider-container">
                 <label>Hlasitost hudby: <span id="volValue">50%</span></label>
                 <input type="range" id="volSlider" min="0" max="100" value="50" oninput="updateVolume(this.value)">
+            </div>
+            <div class="slider-container">
+                <label>Ovládání:</label>
+                <select id="controlSelect" class="menu-btn" onchange="changeControlType(this.value)" style="margin-top:5px; padding: 5px;">
+                    <option value="auto">Automaticky</option>
+                    <option value="touch">Dotykové (Mobil)</option>
+                    <option value="keyboard">Klávesnice (PC)</option>
+                </select>
             </div>
             <div class="slider-container">
                 <label>Výběr hudby:</label>
@@ -462,6 +616,7 @@
                 <small>Rychlost: <span id="speedValue">1.00x</span></small>
             </div>
             <button class="menu-btn" id="btnAutoFs" onclick="toggleAutoFullscreen()">Auto Fullscreen: Vypnuto</button>
+            <button class="menu-btn" onclick="openControlsHelp()">Přehled ovládání</button>
             <button class="menu-btn" onclick="closeSettings()">Zpět</button>
         </div>
     </div>
@@ -473,6 +628,7 @@
             <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; openQuestLog()">Úkoly</button>
             <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; openAchievements()">Achievementy</button>
             <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; startTutorial()">Tutoriál</button>
+            <button class="menu-btn" onclick="document.getElementById('gameplaySettings').style.display='none'; openWeatherForecast()">Předpověď počasí</button>
             <button class="menu-btn" onclick="openStats()">Statistiky</button>
             <button class="menu-btn" onclick="closeGameplaySettings()">Zpět</button>
         </div>
@@ -514,6 +670,20 @@
         let dailyLogin = { lastClaim: 0, streak: 0 };
         let gameplaySource = 'settings';
         let autoFullscreen = false;
+        let merchantState = { active: false, endTime: 0, offer: null };
+        let dayCount = 1;
+        let weatherForecast = [];
+        let lastElapsed = 0;
+        let seasonData = { duration: 6, intensity: 0.8 };
+        let controlType = 'auto';
+
+        const SEASONS = ['Jaro', 'Léto', 'Podzim', 'Zima'];
+        const SEASON_COLORS = [
+            'rgba(0,0,0,0)', // Jaro
+            'rgba(255, 220, 0, 0.15)', // Léto
+            'rgba(180, 100, 50, 0.25)', // Podzim
+            'rgba(200, 230, 255, 0.3)' // Zima
+        ];
         
         const MUSIC_TRACKS = [
             "https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3",
@@ -702,7 +872,7 @@
             bgMusic.volume = 0.5;
             // loadGameData(); // Removed auto load, waiting for slot selection
             resizeGame(); // Scale pro mobil
-            detectDevice(); // Detekce zařízení
+            updateControls(); // Detekce zařízení
             checkQuestsInit(); // Inicializace úkolů
             
             loadMap(currentMapId);
@@ -711,11 +881,12 @@
             updateUI();
             isPaused = true; // Start paused for main menu
             
-            setInterval(updateWeather, 30000); // Check weather change
             setInterval(checkWithering, 2000); // Check for withering
             setInterval(updateTraffic, 50);
             setInterval(updateDayCycle, 1000); // Day/Night cycle
             setInterval(saveGameData, 10000); // Autosave 10s
+            setInterval(updateMerchant, 5000); // Merchant check
+            setInterval(updateTemperature, 15000); // Temperature update every 15s
             setInterval(() => { if(!isPaused && gameStarted) stats.totalPlayTime = (stats.totalPlayTime || 0) + 1000; }, 1000);
 
             window.addEventListener('keydown', handleInput);
@@ -732,8 +903,12 @@
             });
         }
 
-        function detectDevice() {
-            isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 'ontouchstart' in window;
+        function updateControls() {
+            if (controlType === 'auto') {
+                isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 'ontouchstart' in window;
+            } else {
+                isMobile = (controlType === 'touch');
+            }
             
             const mobControls = document.getElementById('mobileControls');
             const pcControls = document.getElementById('pcControls');
@@ -749,6 +924,11 @@
                 if (verText) verText.innerText = "Počítačová verze";
             }
             resizeGame();
+        }
+
+        function changeControlType(val) {
+            controlType = val;
+            updateControls();
         }
 
         function resizeGame() {
@@ -836,6 +1016,10 @@
             currentDifficulty = diffEl ? diffEl.value : 'beginner';
             tutorialSeen = false;
             dailyLogin = { lastClaim: 0, streak: 0 };
+            merchantState = { active: false, endTime: 0, offer: null };
+            dayCount = 1;
+            weatherForecast = [];
+            lastElapsed = 0;
             // Reset variables to default
             resetGameVariables();
             saveGameData(name); // Save immediately to create the slot
@@ -907,6 +1091,11 @@
             shopStock = {}; nextShopResetTime = 0;
             dailyLogin = { lastClaim: 0, streak: 0 };
             cycleStartTime = Date.now();
+            merchantState = { active: false, endTime: 0, offer: null };
+            dayCount = 1;
+            weatherForecast = [];
+            lastElapsed = 0;
+            seasonData = { duration: 6, intensity: 0.8 };
             
             // Reset map fields
             MAPS.farm.fields.forEach(f => f.unlocked = (f.id === 0));
@@ -936,6 +1125,9 @@
                 dailyLogin,
                 autoFullscreen,
                 money, xp, level, stats, completedAchievementIds,
+                dayCount, weatherForecast,
+                merchantState,
+                controlType,
                 inventory, siloStorage, barnStorage, farmCrops, currentMapId, playerPos, 
                 currentHoeIndex, currentBasketIndex, currentCanIndex, currentShovelIndex,
                 activeQuests,
@@ -965,6 +1157,11 @@
                     dailyLogin = data.dailyLogin || { lastClaim: 0, streak: 0 };
                     autoFullscreen = data.autoFullscreen || false;
                     money = data.money;
+                    merchantState = data.merchantState || { active: false, endTime: 0, offer: null };
+                    dayCount = data.dayCount || 1;
+                    weatherForecast = data.weatherForecast || [];
+                    seasonData = data.seasonData || { duration: 6, intensity: 0.8 };
+                    controlType = data.controlType || 'auto';
                     xp = data.xp || 0;
                     level = data.level || 1;
                     maxXp = level * 100;
@@ -1014,6 +1211,15 @@
                     checkQuestsInit();
                     document.getElementById('equippedTool').innerText = HOES[currentHoeIndex].icon;
                     if (nextShopResetTime === 0 || Date.now() >= nextShopResetTime) resetSeedShop();
+                    
+                    // Init weather
+                    let totalCycle = DAY_DURATION + NIGHT_DURATION;
+                    lastElapsed = (Date.now() - cycleStartTime) % totalCycle;
+                    if (lastElapsed < 0) lastElapsed += totalCycle;
+                    updateWeatherFromForecast();
+                    updateSeasonVisuals();
+                    updateControls();
+
                 } catch (e) { console.error("Chyba načítání save", e); }
             }
         }
@@ -1068,6 +1274,7 @@
                         let underBuilding = mapData.buildings.some(b => x >= b.x && x < b.x + b.w && y >= b.y && y < b.y + b.h);
                         if (underBuilding) type = 'concrete';
                         if (y === 6 || y === 9) type = 'sidewalk';
+                        if (x >= 16 && x <= 18 && y >= 10 && y <= 11) type = 'soil';
                         if (y === 7) type = 'road tile road-top';
                         if (y === 8) type = 'road tile road-bottom';
                         if (y >= 11 && y <= 14 && x >= 2 && x <= 10) type = 'parking';
@@ -1094,9 +1301,22 @@
                 el.style.top = (b.y * TILE_SIZE) + 'px';
                 el.style.width = (b.w * TILE_SIZE) + 'px';
                 el.style.height = (b.h * TILE_SIZE) + 'px';
+                el.style.zIndex = (b.y + b.h) * 10; // Dynamická hloubka (podle spodní hrany)
                 el.innerHTML = `<div class="building-sprite">${b.icon}</div><div class="building-label">${b.label}</div>`;
                 containerEl.appendChild(el);
             });
+            
+            if (mapId === 'town') {
+                let el = document.createElement('div');
+                el.id = 'merchantObj';
+                el.className = 'game-object';
+                el.style.left = (16 * TILE_SIZE) + 'px'; el.style.top = (9 * TILE_SIZE) + 'px';
+                el.style.width = (3 * TILE_SIZE) + 'px'; el.style.height = (3 * TILE_SIZE) + 'px';
+                el.style.display = merchantState.active ? 'flex' : 'none';
+                el.style.zIndex = (9 + 3) * 10; // Dynamická hloubka
+                el.innerHTML = `<div class="building-sprite" style="font-size:3.5em;">🎪</div><div class="building-label">Obchodník</div>`;
+                containerEl.appendChild(el);
+            }
 
             mapData.decor.forEach(d => {
                 let el = document.createElement('div');
@@ -1105,6 +1325,7 @@
                 el.style.top = (d.y * TILE_SIZE) + 'px';
                 el.style.width = TILE_SIZE + 'px';
                 el.style.height = TILE_SIZE + 'px';
+                el.style.zIndex = (d.y + 1) * 10; // Dynamická hloubka
                 el.innerHTML = `<div class="decor-sprite">${d.icon}</div>`;
                 containerEl.appendChild(el);
             });
@@ -1127,6 +1348,7 @@
             let el = document.createElement('div');
             el.className = 'car'; el.innerText = icon;
             el.style.top = (lane * TILE_SIZE) + 'px'; el.style.left = startX + 'px';
+            el.style.zIndex = (lane + 1) * 10; // Dynamická hloubka pro auta
             
             // Otočení: Pokud jede doleva (-1), otočit (scaleX(1))
             if (direction === -1) el.style.transform = 'scaleX(1)';
@@ -1149,11 +1371,22 @@
         }
 
         // --- CONTROLS ---
+        let touchInterval = null;
         function setupTouchControls() {
             const bindBtn = (id, key) => {
                 const btn = document.getElementById(id);
-                btn.addEventListener('touchstart', (e) => { e.preventDefault(); handleInput({ key: key }); });
-                // Pro opakovaný pohyb při držení by se musel použít interval, pro jednoduchost zatím klikání
+                btn.addEventListener('touchstart', (e) => { 
+                    e.preventDefault(); 
+                    handleInput({ key: key }); // První pohyb ihned
+                    if(touchInterval) clearInterval(touchInterval);
+                    touchInterval = setInterval(() => {
+                        if(!isMoving) handleInput({ key: key });
+                    }, 100); // Opakování pohybu
+                });
+                btn.addEventListener('touchend', (e) => { 
+                    e.preventDefault(); 
+                    if(touchInterval) { clearInterval(touchInterval); touchInterval = null; }
+                });
             };
             bindBtn('btnUp', 'w'); bindBtn('btnDown', 's');
             bindBtn('btnLeft', 'a'); bindBtn('btnRight', 'd');
@@ -1163,8 +1396,136 @@
             });
         }
 
+        // --- GAMEPAD CONTROLS ---
+        let gamepadIndex = null;
+        let gamepadInterval = null;
+        let gpButtonStates = {};
+        let lastGpNav = 0;
+
+        window.addEventListener("gamepadconnected", (e) => {
+            gamepadIndex = e.gamepad.index;
+            if (!gamepadInterval) gamepadInterval = setInterval(updateGamepadStatus, 100);
+            showFloatingText("Ovladač připojen 🎮", "#fff");
+        });
+
+        window.addEventListener("gamepaddisconnected", (e) => {
+            if (gamepadIndex === e.gamepad.index) {
+                gamepadIndex = null;
+                if (gamepadInterval) { clearInterval(gamepadInterval); gamepadInterval = null; }
+                showFloatingText("Ovladač odpojen", "#fff");
+            }
+        });
+
+        function updateGamepadStatus() {
+            if (gamepadIndex === null) return;
+            const gp = navigator.getGamepads()[gamepadIndex];
+            if (!gp) return;
+
+            // Menu Navigation (Priorita před pohybem ve hře)
+            if (handleGamepadMenuNav(gp)) return;
+
+            // Movement (Left Stick or D-Pad)
+            if (!isMoving && !isPaused && modalEl.style.display !== 'flex') {
+                const up = gp.axes[1] < -0.5 || (gp.buttons[12] && gp.buttons[12].pressed);
+                const down = gp.axes[1] > 0.5 || (gp.buttons[13] && gp.buttons[13].pressed);
+                const left = gp.axes[0] < -0.5 || (gp.buttons[14] && gp.buttons[14].pressed);
+                const right = gp.axes[0] > 0.5 || (gp.buttons[15] && gp.buttons[15].pressed);
+
+                if (up) handleInput({ key: 'w' });
+                else if (down) handleInput({ key: 's' });
+                else if (left) handleInput({ key: 'a' });
+                else if (right) handleInput({ key: 'd' });
+            }
+
+            // Actions
+            checkGamepadButton(gp, 0, 'e'); // A / Cross -> Action
+            checkGamepadButton(gp, 1, 'Escape'); // B / Circle -> Back
+            checkGamepadButton(gp, 2, 'r'); // X / Triangle -> Inventory
+            checkGamepadButton(gp, 3, 'p'); // Y / Square -> Menu
+            checkGamepadButton(gp, 9, 'Escape'); // Arrow down -> Pause
+        }
+
+        function handleGamepadMenuNav(gp) {
+            // Zjistit, které menu je aktivní (hledáme odshora dolů podle priority překrytí)
+            let activeEl = null;
+            const modals = [
+                'controlsModal', 'settingsMenu', 'gameplaySettings', 'statsModal', 
+                'achievementsModal', 'questModal', 'inventoryModal', 'shopModal', 
+                'weatherModal', 'dailyRewardModal', 'tutorialModal', 'newGameModal', 
+                'saveSlotsMenu', 'escMenu', 'mainMenu'
+            ];
+            
+            for (let id of modals) {
+                let el = document.getElementById(id);
+                if (el && el.style.display === 'flex') {
+                    activeEl = el;
+                    break;
+                }
+            }
+
+            if (!activeEl) return false; // Žádné menu není otevřené -> ovládáme hru
+
+            // Najít všechna klikatelná tlačítka a vstupy v aktivním menu
+            let focusable = Array.from(activeEl.querySelectorAll('button, input, select')).filter(el => !el.disabled && el.offsetParent !== null);
+            if (focusable.length === 0) return true; // Menu je otevřené, ale nemá prvky (blokujeme hru)
+
+            let now = Date.now();
+            if (now - lastGpNav < 200) return true; // Debounce (zpomalení pohybu v menu)
+
+            const up = gp.axes[1] < -0.5 || (gp.buttons[12] && gp.buttons[12].pressed);
+            const down = gp.axes[1] > 0.5 || (gp.buttons[13] && gp.buttons[13].pressed);
+            const left = gp.axes[0] < -0.5 || (gp.buttons[14] && gp.buttons[14].pressed);
+            const right = gp.axes[0] > 0.5 || (gp.buttons[15] && gp.buttons[15].pressed);
+            
+            const isNintendo = gp.id && (gp.id.toLowerCase().includes("nintendo") || gp.id.includes("057e"));
+            const confirmIdx = isNintendo ? 1 : 0;
+            const backIdx = isNintendo ? 0 : 1;
+
+            const confirm = gp.buttons[confirmIdx].pressed; 
+            const back = gp.buttons[backIdx].pressed; 
+
+            let current = document.activeElement;
+            let index = focusable.indexOf(current);
+
+            if (up || left) {
+                if (index <= 0) index = focusable.length - 1; else index--;
+                focusable[index].focus();
+                lastGpNav = now;
+            } else if (down || right) {
+                if (index === -1 || index >= focusable.length - 1) index = 0; else index++;
+                focusable[index].focus();
+                lastGpNav = now;
+            } else if (confirm && !gpButtonStates[confirmIdx]) {
+                if (index !== -1) focusable[index].click();
+                else focusable[0].focus();
+                gpButtonStates[confirmIdx] = true;
+                lastGpNav = now;
+            } else if (back && !gpButtonStates[backIdx]) {
+                handleInput({ key: 'Escape' }); // Zavře menu
+                gpButtonStates[backIdx] = true;
+                lastGpNav = now;
+            }
+
+            if (!confirm) gpButtonStates[confirmIdx] = false;
+            if (!back) gpButtonStates[backIdx] = false;
+
+            return true; // Menu bylo obslouženo
+        }
+
+        function checkGamepadButton(gp, btnIndex, key) {
+            if (!gp.buttons[btnIndex]) return;
+            let pressed = gp.buttons[btnIndex].pressed;
+            if (pressed && !gpButtonStates[btnIndex]) {
+                gpButtonStates[btnIndex] = true;
+                handleInput({ key: key });
+            } else if (!pressed) {
+                gpButtonStates[btnIndex] = false;
+            }
+        }
+
         function handleInput(e) {
             if (e.key === 'Escape') {
+                if (document.getElementById('controlsModal').style.display === 'flex') { closeControlsHelp(); return; }
                 if (settingsMenuEl.style.display === 'flex') { closeSettings(); return; }
                 if (modalEl.style.display === 'flex') { closeShop(); return; }
                 if (document.getElementById('inventoryModal').style.display === 'flex') { closeInventory(); return; }
@@ -1232,6 +1593,62 @@
             }
             if (k === 'e') handleInteraction();
         }
+        
+        function updateMerchant() {
+            let now = Date.now();
+            if (merchantState.active) {
+                if (now > merchantState.endTime) {
+                    merchantState.active = false; merchantState.offer = null;
+                    
+                    let banner = document.getElementById('notificationBanner');
+                    banner.innerHTML = "🎪 OBCHODNÍK ODJEL 🎪<br><span style='font-size:0.8em; font-weight:normal'>Nabídka skončila.</span>";
+                    banner.style.display = 'block';
+                    setTimeout(() => { banner.style.display = 'none'; }, 5000);
+
+                    showFloatingText("Obchodník odjel", "#fff");
+                    if(currentMapId === 'town') { let el = document.getElementById('merchantObj'); if(el) el.style.display = 'none'; }
+                }
+            } else {
+                if (Math.random() < 0.05) spawnMerchant(); // 5% chance every 5s check
+            }
+        }
+        
+        function spawnMerchant() {
+            let unlockedCrops = CROP_DEFS.filter(c => c.level <= level);
+            if (unlockedCrops.length === 0) return;
+            
+            merchantState.active = true;
+            merchantState.endTime = Date.now() + (2 * 60 * 1000); // 2 minutes
+            let item = unlockedCrops[Math.floor(Math.random() * unlockedCrops.length)];
+            let isSellingSeeds = Math.random() > 0.5;
+            if (isSellingSeeds) {
+                let seedKey = item.id + '_seed';
+                let normalPrice = ITEMS[seedKey].price;
+                let discountPrice = Math.floor(normalPrice * 0.7);
+                merchantState.offer = { type: 'sell_seeds', key: seedKey, price: discountPrice, normalPrice: normalPrice, name: ITEMS[seedKey].name };
+            } else {
+                let cropKey = item.id;
+                let normalPrice = item.price;
+                let bonusPrice = Math.floor(item.price * 1.5);
+                merchantState.offer = { type: 'buy_crops', key: cropKey, price: bonusPrice, normalPrice: normalPrice, name: item.name };
+            }
+            
+            // Oznámení a zvuk
+            let banner = document.getElementById('notificationBanner');
+            banner.innerHTML = "🎪 PŘIJEL OBCHODNÍK! 🎪<br><span style='font-size:0.8em; font-weight:normal'>Speciální nabídka ve městě!</span>";
+            banner.style.display = 'block';
+            let snd = document.getElementById('merchantSound');
+            if(snd) { snd.currentTime = 0; snd.play().catch(e => console.log(e)); }
+            setTimeout(() => { banner.style.display = 'none'; }, 5000);
+
+            if(currentMapId === 'town') { 
+                let el = document.getElementById('merchantObj'); 
+                if(el) {
+                    el.style.display = 'flex';
+                    el.style.zIndex = (9 + 3) * 10;
+                }
+            }
+        }
 
         function switchMap(direction) {
             const overlay = document.getElementById('transitionOverlay');
@@ -1267,6 +1684,7 @@
             if (instant) playerEl.style.transition = 'none';
             playerEl.style.left = (playerPos.x * TILE_SIZE) + 'px';
             playerEl.style.top = (playerPos.y * TILE_SIZE) + 'px';
+            playerEl.style.zIndex = (playerPos.y + 1) * 10; // Dynamická hloubka hráče
             if (instant) { void playerEl.offsetWidth; updatePlayerAnim(); }
             checkUnderFeet(); checkProximity();
         }
@@ -1297,6 +1715,11 @@
             let b = MAPS[currentMapId].buildings.find(bu => isNear(playerPos, bu));
             if (b && b.type === 'key') { b.action(); return; }
             
+            if (currentMapId === 'town' && merchantState.active && playerPos.x >= 15 && playerPos.x <= 19 && playerPos.y >= 8 && playerPos.y <= 12) {
+                openMerchantMenu();
+                return;
+            }
+            
             let tile = tiles[playerPos.y][playerPos.x];
             
             // Dead crop removal (Lopata)
@@ -1318,6 +1741,7 @@
             // Planting logic
             if (tile.type.includes('soil') && !tile.type.includes('locked') && tile.crop && tile.crop.ready === false && !tile.el.classList.contains('growing') && !tile.el.classList.contains('seeded')) {
                 // Find first seed
+                if (temperature <= 0) { showFloatingText("Je moc zima!", "#b3e5fc"); return; }
                 let seedKey = Object.keys(inventory).find(k => ITEMS[k] && ITEMS[k].type === 'seed' && inventory[k] > 0);
                 if (seedKey) {
                     inventory[seedKey]--; updateHolding(); updateUI();
@@ -1340,6 +1764,10 @@
             let actionText = isMobile ? "AKCE" : "E";
             let b = MAPS[currentMapId].buildings.find(bu => isNear(playerPos, bu));
             if (b && b.type === 'key') { showBubble(b.x + b.w/2, b.y, `${actionText}: ${b.desc}`); return; }
+            if (currentMapId === 'town' && merchantState.active && playerPos.x >= 15 && playerPos.x <= 19 && playerPos.y >= 8 && playerPos.y <= 12) {
+                showBubble(17.5, 9, `${actionText}: Obchodník`);
+                return;
+            }
             let tile = tiles[playerPos.y][playerPos.x];
             if (tile.fieldId !== null) {
                 let f = MAPS[currentMapId].fields.find(fi => fi.id === tile.fieldId);
@@ -1392,7 +1820,24 @@
             crop.el.className = 'tile soil seeded';
             crop.el.removeAttribute('data-type');
             
+            // Check for freezing conditions immediately
+            if (temperature <= 0) {
+                crop.frozen = true;
+                crop.freezeTimestamp = Date.now();
+                crop.el.classList.add('frozen');
+                // Don't start the timer, just return. 
+                // The crop is now in a "frozen" state and will be resumed by checkFreezing() when temp > 0.
+                return;
+            }
+
             let duration = Math.max(1000, 5000 - (SKILLS.growth.level - 1) * 800);
+            
+            // Efekt ročního období (Zima = pomalý růst)
+            let sIndex = Math.floor((dayCount - 1) / seasonData.duration) % 4;
+            if (sIndex === 3) { // Zima
+                duration *= 5; // 5x pomalejší růst
+            }
+
             let elapsed = now - startTime;
             
             // Weather effect
@@ -1675,6 +2120,47 @@
             shopTimerInterval = setInterval(updateShopTimerUI, 1000);
         }
 
+        function openMerchantMenu() {
+            let offer = merchantState.offer;
+            if (!offer) return;
+            let html = `<div style="text-align:center; margin-bottom:20px;">
+                <h3>Speciální nabídka!</h3>
+                <div style="font-size:4em; margin:10px;">${offer.type === 'sell_seeds' ? '🌱' : '💰'}</div>
+                <p>${offer.type === 'sell_seeds' ? 'Prodávám levně:' : 'Vykupuji draze:'}</p>
+                <h2 style="color:var(--highlight)">${offer.name}</h2>
+                <p>Cena: <b style="color:#76ff03">${offer.price} Kč</b> <span style="text-decoration:line-through; color:#aaa; font-size:0.8em;">${offer.normalPrice} Kč</span></p>
+                <p style="font-size:0.9em; color:#ccc;">Zbývá času: <span id="merchantTimer"></span></p>
+            </div>
+            <div style="display:flex; justify-content:center; gap:10px;">
+                <button class="menu-btn" style="background:#2e7d32;" onclick="tradeMerchant()">
+                    ${offer.type === 'sell_seeds' ? 'Koupit' : 'Prodat'}
+                </button>
+                <button class="menu-btn" onclick="closeShop()">Odejít</button>
+            </div>`;
+            document.getElementById('shopTitle').innerText = "Potulný obchodník";
+            document.getElementById('shopContent').innerHTML = html;
+            modalEl.style.display = 'flex';
+            if(shopTimerInterval) clearInterval(shopTimerInterval);
+            shopTimerInterval = setInterval(() => {
+                let diff = merchantState.endTime - Date.now();
+                if(diff <= 0) { closeShop(); return; }
+                let m = Math.floor(diff/60000); let s = Math.floor((diff%60000)/1000);
+                let el = document.getElementById('merchantTimer'); if(el) el.innerText = `${m}:${s<10?'0'+s:s}`;
+            }, 1000);
+        }
+
+        function tradeMerchant() {
+            let offer = merchantState.offer;
+            if (offer.type === 'sell_seeds') {
+                let cap = BASKETS[currentBasketIndex].cap;
+                if (holding >= cap) { alert("Plný košík!"); return; }
+                if (money >= offer.price) { money -= offer.price; inventory[offer.key] = (inventory[offer.key] || 0) + 1; updateHolding(); updateUI(); saveGameData(); let snd = document.getElementById('buySound'); snd.currentTime = 0; snd.play().catch(e => console.log(e)); showFloatingText("+1 " + offer.name, "#fff"); } else { alert("Nedostatek peněz!"); }
+            } else {
+                let count = inventory[offer.key] || 0;
+                if (count > 0) { let total = count * offer.price; money += total; inventory[offer.key] = 0; updateHolding(); updateUI(); saveGameData(); stats.totalMoney += total; stats.totalSold += count; checkAchievements(); let snd = document.getElementById('buySound'); snd.currentTime = 0; snd.play().catch(e => console.log(e)); showFloatingText(`+${total} Kč`, "#ffd700"); closeShop(); } else { alert("Nemáš žádné " + offer.name); }
+            }
+        }
+
         function updateShopTimerUI() {
             let el = document.getElementById('shopTimer');
             if(!el) return;
@@ -1820,6 +2306,15 @@
             let elapsed = (Date.now() - cycleStartTime) % totalCycle;
             if (elapsed < 0) elapsed += totalCycle;
 
+            // Day increment logic
+            if (elapsed < lastElapsed && Math.abs(elapsed - lastElapsed) > 5000) {
+                dayCount++;
+                updateWeatherFromForecast();
+                updateSeasonVisuals();
+                saveGameData();
+            }
+            lastElapsed = elapsed;
+
             let isDay = elapsed < DAY_DURATION;
             let timeLeft = isDay ? (DAY_DURATION - elapsed) : (totalCycle - elapsed);
             
@@ -1847,6 +2342,10 @@
             setTimeout(() => {
                 // Reset cycle to 30s into day
                 cycleStartTime = Date.now() - 30000; 
+                lastElapsed = 30000;
+                dayCount++;
+                updateWeatherFromForecast();
+                updateSeasonVisuals();
                 updateDayCycle();
                 showFloatingText("Dobré ráno!", "#ffeb3b");
                 saveGameData();
@@ -1910,6 +2409,7 @@
             document.getElementById('btnMusicToggle').innerText = bgMusic.paused ? "Hrát" : "Stop";
             document.getElementById('speedValue').innerText = bgMusic.playbackRate.toFixed(2) + 'x';
             document.getElementById('musicSelect').value = currentTrackIndex;
+            document.getElementById('controlSelect').value = controlType;
             document.getElementById('btnAutoFs').innerText = "Auto Fullscreen: " + (autoFullscreen ? "Zapnuto" : "Vypnuto");
         }
 
@@ -1917,6 +2417,15 @@
             settingsMenuEl.style.display = 'none';
             if (gameStarted) escMenuEl.style.display = 'flex';
             else document.getElementById('mainMenu').style.display = 'flex';
+        }
+
+        function openControlsHelp() {
+            document.getElementById('settingsMenu').style.display = 'none';
+            document.getElementById('controlsModal').style.display = 'flex';
+        }
+        function closeControlsHelp() {
+            document.getElementById('controlsModal').style.display = 'none';
+            document.getElementById('settingsMenu').style.display = 'flex';
         }
 
         function openGameplaySettings() {
@@ -2294,29 +2803,167 @@
         }
 
         // --- WEATHER SYSTEM ---
-        function updateWeather() {
-            if (isPaused || !gameStarted || modalEl.style.display === 'flex' || document.getElementById('questModal').style.display === 'flex' || document.getElementById('achievementsModal').style.display === 'flex') return;
-            if (Math.random() < 0.3) { // 30% chance to change
-                weather = weather === 'sun' ? 'rain' : 'sun';
-                const rainEl = document.getElementById('rainLayer');
-                if (weather === 'rain') {
-                    rainEl.style.display = 'block';
-                    showFloatingText("Začalo pršet!", "#4fc3f7");
+        function ensureForecast() {
+            let maxDay = dayCount + 7;
+            let lastKnown = 0;
+            if (weatherForecast.length > 0) lastKnown = weatherForecast[weatherForecast.length-1].day;
+            else lastKnown = dayCount - 1;
+            
+            for (let d = lastKnown + 1; d <= maxDay; d++) {
+                let sIndex = Math.floor((d - 1) / seasonData.duration) % 4;
+                let type = Math.random() < 0.3 ? 'rain' : 'sun';
+                
+                let min, max;
+                if (sIndex === 0) { min = 10; max = 25; } // Jaro
+                else if (sIndex === 1) { min = 25; max = 40; } // Léto
+                else if (sIndex === 2) { min = 5; max = 15; } // Podzim
+                else { min = 0; max = 5; } // Zima
+
+                let temp;
+                // Speciální logika pro zimu, aby max teplota (5°C) padla vzácněji (cca 1x za 2 roky)
+                if (sIndex === 3) {
+                    if (Math.random() < 0.08) temp = 5;
+                    else temp = Math.floor(Math.random() * 5); // 0-4
                 } else {
-                    rainEl.style.display = 'none';
-                    showFloatingText("Vyšlo slunce!", "#ffeb3b");
+                    temp = Math.floor(Math.random() * (max - min + 1)) + min;
+                }
+
+                // Při dešti je chladněji
+                if (type === 'rain') {
+                    temp -= 2;
+                    if (temp < min) temp = min;
+                }
+
+                weatherForecast.push({ day: d, type: type, temp: temp });
+            }
+        }
+
+        function updateWeatherFromForecast() {
+            ensureForecast();
+            let f = weatherForecast.find(x => x.day === dayCount);
+            if (!f) { f = { type: 'sun', temp: 20 }; }
+            
+            let oldWeather = weather;
+            weather = f.type;
+            // temperature = f.temp; // Removed: Temperature is now updated dynamically every 15s
+            
+            const rainEl = document.getElementById('rainLayer');
+            if (weather === 'rain') {
+                rainEl.style.display = 'block';
+                if(oldWeather !== 'rain') showFloatingText("Dnes bude pršet", "#4fc3f7");
+            } else {
+                rainEl.style.display = 'none';
+                if(oldWeather === 'rain') showFloatingText("Dnes bude slunečno", "#ffeb3b");
+            }
+            document.getElementById('dayDisplay').innerText = "Den " + dayCount;
+        }
+
+        function updateTemperature() {
+            if (isPaused && gameStarted) return; // Don't update if paused
+
+            let sIndex = Math.floor((dayCount - 1) / seasonData.duration) % 4;
+            let min, max;
+            if (sIndex === 0) { min = 10; max = 25; } // Jaro
+            else if (sIndex === 1) { min = 25; max = 40; } // Léto
+            else if (sIndex === 2) { min = 5; max = 15; } // Podzim
+            else { min = -2; max = 5; } // Zima (Allow slightly below 0 for freezing mechanic)
+
+            // Generate new temp
+            temperature = Math.floor(Math.random() * (max - min + 1)) + min;
+            
+            if (weather === 'rain') {
+                temperature -= 2;
+                if (temperature < min) temperature = min;
+            }
+
+            document.getElementById('tempDisplay').innerText = temperature + '°C';
+            if (temperature > 32) showFloatingText("Horko! Zalévej!", "#ff5722");
+            if (temperature <= 0) showFloatingText("Mrzne!", "#b3e5fc");
+
+            checkFreezing();
+        }
+
+        function checkFreezing() {
+            farmCrops.forEach(c => {
+                if (temperature <= 0) {
+                    if (!c.frozen && !c.ready && !c.dead && !c.withered) {
+                        c.frozen = true;
+                        c.freezeTimestamp = Date.now();
+                        if (c.timerId) clearTimeout(c.timerId);
+                        c.el.classList.add('frozen');
+                    }
+                } else if (c.frozen) {
+                    c.frozen = false;
+                    c.el.classList.remove('frozen');
+                    let pauseDuration = Date.now() - c.freezeTimestamp;
+                    c.plantTime += pauseDuration;
+                    startGrowth(c, c.type, c.plantTime);
+                }
+            });
+            if (temperature > 32) showFloatingText("Horko! Zalévej!", "#ff5722");
+        }
+
+        function updateSeasonVisuals() {
+            let sIndex = Math.floor((dayCount - 1) / seasonData.duration) % 4;
+            let seasonName = SEASONS[sIndex];
+            let baseColor = SEASON_COLORS[sIndex];
+            
+            // Update Container Class for CSS styling
+            let container = document.getElementById('gameContainer');
+            if (container) {
+                container.classList.remove('season-spring', 'season-summer', 'season-autumn', 'season-winter');
+                let seasonClass = ['season-spring', 'season-summer', 'season-autumn', 'season-winter'][sIndex];
+                container.classList.add(seasonClass);
+            }
+
+            let overlay = document.getElementById('seasonOverlay');
+            if (overlay) {
+                if (sIndex === 0) {
+                    overlay.style.backgroundColor = 'rgba(0,0,0,0)';
+                } else {
+                    let parts = baseColor.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+                    if (parts) {
+                        let r = parts[1], g = parts[2], b = parts[3];
+                        let a = parseFloat(parts[4] || 1);
+                        let newA = a * seasonData.intensity;
+                        overlay.style.backgroundColor = `rgba(${r}, ${g}, ${b}, ${newA})`;
+                    }
                 }
             }
             
-            // Update Temperature
-            if (weather === 'sun') {
-                temperature = Math.floor(Math.random() * (40 - 25 + 1)) + 25; // 25-40
-            } else {
-                temperature = Math.floor(Math.random() * (25 - 15 + 1)) + 15; // 15-25
+            let dayEl = document.getElementById('dayDisplay');
+            if (dayEl) {
+                let icon = ['🌸','☀️','🍂','❄️'][sIndex];
+                dayEl.innerHTML = `Den ${dayCount} <span style="font-weight:normal; font-size:0.9em;">${icon} ${seasonName}</span>`;
             }
-            document.getElementById('tempDisplay').innerText = temperature + '°C';
-            if (temperature > 32) showFloatingText("Horko! Zalévej!", "#ff5722");
+
+            // Aktualizace rychlosti růstu plodin při změně období (pokud jsme na farmě)
+            if (currentMapId === 'farm') {
+                farmCrops.forEach(c => {
+                    if (tiles[c.y] && tiles[c.y][c.x]) {
+                        let tile = tiles[c.y][c.x];
+                        if (tile.crop && !tile.crop.ready && !tile.crop.dead && !tile.crop.withered) {
+                            startGrowth(tile.crop, c.type, c.plantTime);
+                        }
+                    }
+                });
+            }
         }
+
+        function openWeatherForecast() {
+            ensureForecast();
+            let html = `<table class="shop-table"><tr><th>Den</th><th>Počasí</th><th>Teplota</th></tr>`;
+            weatherForecast.filter(f => f.day >= dayCount && f.day < dayCount + 5).forEach(f => {
+                let icon = f.type === 'sun' ? '☀️' : '🌧️';
+                let label = f.type === 'sun' ? 'Slunečno' : 'Déšť';
+                let isToday = f.day === dayCount ? ' (Dnes)' : '';
+                html += `<tr><td>Den ${f.day}${isToday}</td><td>${icon} ${label}</td><td>${f.temp}°C</td></tr>`;
+            });
+            html += `</table>`;
+            document.getElementById('weatherContent').innerHTML = html;
+            document.getElementById('weatherModal').style.display = 'flex';
+        }
+        function closeWeatherForecast() { document.getElementById('weatherModal').style.display = 'none'; }
         
         function checkWithering() {
             if (isPaused || !gameStarted || modalEl.style.display === 'flex' || document.getElementById('questModal').style.display === 'flex' || document.getElementById('achievementsModal').style.display === 'flex') return;
@@ -2359,3 +3006,4 @@
     </script>
 </body>
 </html>
+
